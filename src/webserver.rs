@@ -45,7 +45,8 @@ async fn ws_handler(req: HttpRequest, stream: web::Payload) -> Result<HttpRespon
 
 // This fn grabs assets and returns them
 async fn index(req: HttpRequest, _stream: web::Payload) -> HttpResponse {
-  
+  use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+
   // We perform some common routing tactics here
   let mut r_path = req.path();
   if r_path == "/" {
@@ -53,6 +54,18 @@ async fn index(req: HttpRequest, _stream: web::Payload) -> HttpResponse {
   }
   if r_path.starts_with("/") {
     r_path = &r_path[1..];
+  }
+
+  // Do some security checks (only localhost should talk to "leader.html")
+  if r_path == "leader.html" {
+    if let Some(addr) = req.peer_addr() {
+      if ! addr.ip().is_loopback() {
+        // Security error, don't let anyone become the leader!
+        return HttpResponse::NotFound()
+          .content_type("text/html")
+          .body(&include_bytes!("www/404.html")[..]);
+      }
+    }
   }
 
   // Finally pull from fs/memory 
@@ -81,7 +94,7 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>>  {
 
   let sys = actix_rt::System::new(crate::APP_NAME);
   
-  let address = format!("127.0.0.1:{}", crate::HTTP_PORT);
+  let address = format!("0.0.0.0:{}", crate::HTTP_PORT);
 
   HttpServer::new(||
       App::new()
