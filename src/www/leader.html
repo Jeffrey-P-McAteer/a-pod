@@ -1,0 +1,32 @@
+<h1>Leader UI</h1>
+<pre id="log">
+</pre>
+<script>
+// Listen to window.base_url + /ws/
+window.base_url = location.protocol+'//'+location.hostname+(location.port ? ':'+location.port: '');
+window.log_e = document.getElementById('log');
+
+window.ws = new WebSocket(window.base_url+'/ws/');
+
+window.ws.onopen = function (event) {
+  var name = localStorage.getItem('name');
+  if (!name) {
+    name = window.prompt('What is your name?', 'idk man');
+    localStorage.setItem('name', name);
+  }
+
+  // Tell the server who we are
+  window.ws.send(JSON.stringify({
+    'event': 'follower-joined',
+    'name': name
+  }));
+
+};
+
+window.ws.onmessage = function (event) {
+  console.log(event.data);
+
+};
+
+</script>
+

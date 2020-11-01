@@ -1,0 +1,28 @@
+[package]
+name = "a-pod"
+version = "0.1.0"
+authors = ["Jeffrey McAteer <jeffrey.p.mcateer@gmail.com>"]
+edition = "2018"
+
+
+[dependencies]
+crossbeam = "0.7"
+
+web-view = { version = "0.6", features = [] }
+
+actix-web-actors = "3.0"
+actix = "0.10.0"
+actix-web = { version = "3.0.0", default-features = false }
+actix-http = "2.0.0"
+actix-codec = "0.3.0"
+actix-rt = "1.1.1"
+
+rust-embed="5.6.0"
+
+mime_guess = "2.0"
+
+
+[target.x86_64-pc-windows-gnu.dependencies]
+winapi = {version = "0.3", features = ["wincon", "winuser"]}
+
+
