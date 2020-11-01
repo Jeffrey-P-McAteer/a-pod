@@ -1,31 +1,49 @@
 <h1>Leader UI</h1>
+<p>Private Link: <em id="private_link">Private Link</em></p>
+<p>Public Link: <em id="public_link">Public Link</em></p>
 <pre id="log">
 </pre>
 <script>
 // Listen to window.base_url + /ws/
-window.base_url = location.protocol+'//'+location.hostname+(location.port ? ':'+location.port: '');
+window.base_url_http = location.protocol+'//'+location.hostname+(location.port ? ':'+location.port: '');
+if (location.protocol === 'https') {
+  window.base_url_ws = 'wss://'+location.hostname+(location.port ? ':'+location.port: '')+'/ws';
+}
+else {
+  window.base_url_ws = 'ws://'+location.hostname+(location.port ? ':'+location.port: '')+'/ws';
+}
+
 window.log_e = document.getElementById('log');
 
-window.ws = new WebSocket(window.base_url+'/ws/');
+var p = document.getElementById('private_link');
+p.innerHTML = window.base_url_http;
+
+// Ask cloudfare who we are
+var x = new XMLHttpRequest();
+x.onreadystatechange = function() { 
+    if (x.readyState == 4 && x.status == 200) {
+      // TODO this is only valid for ipv4 ranges
+      const ipRegex = /[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}/;
+      var p = document.getElementById('public_link');
+      const pub_ip = x.responseText.match(ipRegex)[0];
+
+      var pub_url = location.protocol+'//'+pub_ip+(location.port ? ':'+location.port: '');
+      p.innerHTML = pub_url;
+    }
+}
+x.open("GET", 'https://www.cloudflare.com/cdn-cgi/trace', true); // true means asynchronous
+x.send(null);
+
+
+window.ws = new WebSocket(window.base_url_ws);
 
 window.ws.onopen = function (event) {
-  var name = localStorage.getItem('name');
-  if (!name) {
-    name = window.prompt('What is your name?', 'idk man');
-    localStorage.setItem('name', name);
-  }
-
-  // Tell the server who we are
-  window.ws.send(JSON.stringify({
-    'event': 'follower-joined',
-    'name': name
-  }));
-
+  // We don't have any data we're interested in
 };
 
 window.ws.onmessage = function (event) {
   console.log(event.data);
-
+  window.log_e.innerHTML += event.data+'\n';
 };
 
 </script>

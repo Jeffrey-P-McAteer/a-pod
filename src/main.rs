@@ -8,7 +8,15 @@ pub const HTTP_PORT: u64 = 8080;
 pub const APP_NAME: &'static str = "A-Pod";
 
 fn main() {
-    // Run background threads in the background
+  // Setup event handler for OS signals
+  let e = ctrlc::set_handler(move || {
+    std::process::exit(0);
+  });
+  if let Err(e) = e {
+    println!("Error setting signal handler: {}", e);
+  }
+
+  // Run background threads in the background
   std::thread::spawn(bg_main);
 
   // Run graphics on main thread (windows cares quite a bit about this)

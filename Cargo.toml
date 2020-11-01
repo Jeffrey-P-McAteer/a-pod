@@ -21,6 +21,7 @@ rust-embed="5.6.0"
 
 mime_guess = "2.0"
 
+ctrlc = "3.1"
 
 [target.x86_64-pc-windows-gnu.dependencies]
 winapi = {version = "0.3", features = ["wincon", "winuser"]}

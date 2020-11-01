@@ -37,6 +37,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for MyWs {
 // This fn upgrades /ws/ http requests to a websocket connection
 // which may stream events to/from the GUI
 async fn ws_handler(req: HttpRequest, stream: web::Payload) -> Result<HttpResponse, Error> {
+    println!("ws_handler");
     let resp = ws::start(MyWs {}, &req, stream);
     println!("{:?}", resp);
     resp
@@ -45,15 +46,14 @@ async fn ws_handler(req: HttpRequest, stream: web::Payload) -> Result<HttpRespon
 // This fn grabs assets and returns them
 async fn index(req: HttpRequest, _stream: web::Payload) -> HttpResponse {
   
-  println!("req.path()={}", req.path());
-
   // We perform some common routing tactics here
   let mut r_path = req.path();
   if r_path == "/" {
     r_path = "index.html";
   }
-
-  println!("r_path={}", r_path);
+  if r_path.starts_with("/") {
+    r_path = &r_path[1..];
+  }
 
   // Finally pull from fs/memory 
   match WWWAssets::get(r_path) {
@@ -75,19 +75,48 @@ async fn index(req: HttpRequest, _stream: web::Payload) -> HttpResponse {
 }
 
 pub fn main() -> Result<(), Box<dyn std::error::Error>>  {
+
+  let local_ip = get_lan_ip();
+  println!("local_ip={}", local_ip); // TODO store globally so leader ws can ask for it
+
   let sys = actix_rt::System::new(crate::APP_NAME);
   
   let address = format!("127.0.0.1:{}", crate::HTTP_PORT);
 
   HttpServer::new(||
       App::new()
-        .route("/ws/", web::get().to(ws_handler))
+        .route("/ws", web::get().to(ws_handler))
         .route("/", web::get().to(index))
+        .default_service(
+          web::route().to(index)
+        )
+
     )
     .bind(&address)?
     .run();
 
-  let _ = sys.run()?;
+  let x = sys.run()?;
+  println!("x={:?}", x); // paranoia about smart compiler optimizations
 
   Ok(())
 }
+
+fn get_lan_ip() -> String {
+  use std::net::UdpSocket;
+  let socket = match UdpSocket::bind("0.0.0.0:0") {
+      Ok(s) => s,
+      Err(_) => return "127.0.0.1".to_string(),
+  };
+
+  match socket.connect("8.8.8.8:80") {
+      Ok(()) => (),
+      Err(_) => return "127.0.0.1".to_string(),
+  };
+
+  match socket.local_addr() {
+      Ok(addr) => addr.ip().to_string(),
+      Err(_) => "127.0.0.1".to_string(),
+  }
+}
+
+

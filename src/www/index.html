@@ -1,14 +1,19 @@
-
-<h1>Hello!</h1>
-
+<h1>Follower UI</h1>
 <pre id="log">
 </pre>
 <script>
 // Listen to window.base_url + /ws/
-window.base_url = location.protocol+'//'+location.hostname+(location.port ? ':'+location.port: '');
+window.base_url_http = location.protocol+'//'+location.hostname+(location.port ? ':'+location.port: '');
+if (location.protocol === 'https') {
+  window.base_url_ws = 'wss://'+location.hostname+(location.port ? ':'+location.port: '')+'/ws';
+}
+else {
+  window.base_url_ws = 'ws://'+location.hostname+(location.port ? ':'+location.port: '')+'/ws';
+}
+
 window.log_e = document.getElementById('log');
 
-window.ws = new WebSocket(window.base_url+'/ws/');
+window.ws = new WebSocket(window.base_url_ws);
 
 window.ws.onopen = function (event) {
   var name = localStorage.getItem('name');
@@ -27,7 +32,8 @@ window.ws.onopen = function (event) {
 
 window.ws.onmessage = function (event) {
   console.log(event.data);
-
+  window.log_e.innerHTML += event.data+'\n';
 };
 
 </script>
+
