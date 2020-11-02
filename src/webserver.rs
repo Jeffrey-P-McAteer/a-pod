@@ -1,12 +1,14 @@
 
 use actix::{
-  Actor, StreamHandler, Addr
+  Actor, StreamHandler, Addr, Handler
 };
 use actix_web::{
   web, App, Error, HttpRequest, HttpResponse, HttpServer
 };
 use actix_web_actors::ws;
 use actix_rt;
+
+use actix_derive::{Message, MessageResponse};
 
 use actix::prelude::*;
 
@@ -22,6 +24,10 @@ use std::sync::{
 #[derive(RustEmbed)]
 #[folder = "src/www"]
 struct WWWAssets;
+
+#[derive(Message)]
+#[rtype(result = "()")]
+pub struct WsMessage(pub String);
 
 /// Define HTTP actor
 /// One of these is made for each websocket connection
@@ -45,10 +51,23 @@ impl Actor for APodWs {
     type Context = ws::WebsocketContext<Self>;
 }
 
+impl Handler<WsMessage> for APodWs {
+    type Result = ();
+    fn handle(&mut self, msg: WsMessage, ctx: &mut Self::Context) -> Self::Result {
+        // Occurs when a client tells the server something + the server broadcasts.
+        // We must forward "msg" to the client's websocket connection.
+        let msg: String = msg.0;
+        ctx.text(msg);
+    }
+}
+
 /// Handler for ws::Message message
 impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for APodWs {
     fn started(&mut self, ctx: &mut Self::Context) {
-        self.data.lock().unwrap().clients.push(self.num as u8);
+        let addr = ctx.address();
+        self.data.lock().unwrap().clients.push(
+          addr.recipient()
+        );
     }
 
     fn handle(
@@ -66,7 +85,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for APodWs {
 }
 
 struct GlobalData {
-  pub clients: Vec<u8>
+  pub clients: Vec<Recipient<WsMessage>>
 }
 
 impl Default for GlobalData {
@@ -95,7 +114,13 @@ fn handle_ws_msg(ws: &mut APodWs, ctx: &mut ws::WebsocketContext<APodWs>, text: 
 
   // }
 
-  println!("ws.data.clients = {:?}", ws.data.lock().unwrap().clients);
+  for client in &ws.data.lock().unwrap().clients {
+    if let Err(e) = client.try_send(WsMessage(text.clone())) {
+      println!("Error sending msg to client: {}", e);
+    }
+  }
+
+  //println!("ws.data.clients = {:?}", ws.data.lock().unwrap().clients);
 
 }
 

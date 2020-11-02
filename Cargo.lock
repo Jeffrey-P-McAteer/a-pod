@@ -10,6 +10,7 @@ dependencies = [
  "actix-rt",
  "actix-web",
  "actix-web-actors",
+ "actix_derive",
  "crossbeam",
  "ctrlc",
  "mime_guess",
