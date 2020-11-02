@@ -1,7 +1,10 @@
 <h1>Follower UI</h1>
-<video id="selfcam" autoplay></video>
+
+<video id="selfcam" volume="0" autoplay></video>
+
 <pre id="log">
 </pre>
+
 <script>
 // Listen to window.base_url + /ws/
 window.base_url_http = location.protocol+'//'+location.hostname+(location.port ? ':'+location.port: '');
@@ -33,13 +36,48 @@ window.ws.onopen = function (event) {
 };
 
 window.ws.onmessage = function (event) {
-  console.log(event.data);
-  window.log_e.innerHTML += event.data+'\n';
+  if (typeof event.data === "string") {
+    console.log(event.data);
+    window.log_e.innerHTML += event.data+'\n';
+  }
+  else {
+    //console.log('event.data must be binary');
+
+  }
 };
 
 // Begin asking for video
 navigator.mediaDevices.getUserMedia({video: true, audio: true}).
-  then((stream) => {window.selfcam_e.srcObject = stream});
+  then((stream) => {
+    // Save stream to local view
+    window.selfcam_e.srcObject = stream;
+    window.selfcam_e.volume = 0;
+  });
+
+function dataURItoBlob(dataURI) {
+    var binary = atob(dataURI.split(',')[1]);
+    var array = [];
+    for(var i = 0; i < binary.length; i++) {
+        array.push(binary.charCodeAt(i));
+    }
+    return new Blob([new Uint8Array(array)], {type: 'image/jpeg'});
+}
+
+// We forward the video contents every 80ms
+setInterval(function() {
+  if (window.selfcam_e.paused !== true) {
+    var canvas = document.createElement('canvas');
+    canvas.height = window.selfcam_e.videoHeight;
+    canvas.width = window.selfcam_e.videoWidth;
+    var ctx = canvas.getContext('2d');
+    ctx.drawImage(window.selfcam_e, 0, 0, canvas.width, canvas.height);
+
+    var img = canvas.toDataURL("image/jpeg");
+    var blob = dataURItoBlob(img);
+    window.ws.send(blob);
+
+  }
+}, 80);
 
 </script>
 

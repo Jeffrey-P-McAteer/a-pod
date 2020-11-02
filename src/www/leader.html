@@ -1,8 +1,12 @@
 <h1>Leader UI</h1>
 <p>Private Link: <em id="private_link">Private Link</em></p>
 <p>Public Link: <em id="public_link">Public Link</em></p>
+
+<canvas id="remotecam" width="1280" height="720"></canvas>
+
 <pre id="log">
 </pre>
+
 <script>
 // Listen to window.base_url + /ws/
 window.base_url_http = location.protocol+'//'+location.hostname+(location.port ? ':'+location.port: '');
@@ -14,6 +18,7 @@ else {
 }
 
 window.log_e = document.getElementById('log');
+window.remotecam_e = document.getElementById('remotecam');
 
 var p = document.getElementById('private_link');
 p.innerHTML = window.base_url_http;
@@ -46,13 +51,25 @@ window.ws.onopen = function (event) {
 };
 
 window.ws.onmessage = function (event) {
-  console.log(event.data);
-  window.log_e.innerHTML += event.data+'\n';
-  var data = JSON.parse(event.data);
-  if (data['event'] == 'lan-ip') {
-    var ip = data['ip'];
-    var p = document.getElementById('private_link');
-    p.innerHTML = location.protocol+'//'+ip+(location.port ? ':'+location.port: '');
+  if (typeof event.data === "string") {
+    console.log(event.data);
+    window.log_e.innerHTML += event.data+'\n';
+    var data = JSON.parse(event.data);
+    if (data['event'] == 'lan-ip') {
+      var ip = data['ip'];
+      var p = document.getElementById('private_link');
+      p.innerHTML = location.protocol+'//'+ip+(location.port ? ':'+location.port: '');
+    }
+  }
+  else {
+    //console.log('event.data must be binary');
+
+    var ctx = window.remotecam_e.getContext("2d");
+    createImageBitmap(event.data).then(function (img) {
+      //console.log("img=",img);
+      ctx.drawImage(img, 0, 0);
+    });
+
   }
 };
 

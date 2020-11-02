@@ -31,7 +31,10 @@ struct WWWAssets;
 
 #[derive(Message)]
 #[rtype(result = "()")]
-pub struct WsMessage(pub String);
+pub enum WsMessage {
+  S(String),
+  B(Vec<u8>)
+}
 
 /// Define HTTP actor
 /// One of these is made for each websocket connection
@@ -62,8 +65,14 @@ impl Handler<WsMessage> for APodWs {
     fn handle(&mut self, msg: WsMessage, ctx: &mut Self::Context) -> Self::Result {
         // Occurs when a client tells the server something + the server broadcasts.
         // We must forward "msg" to the client's websocket connection.
-        let msg: String = msg.0;
-        ctx.text(msg);
+        match msg {
+          WsMessage::S(msg) => {
+            ctx.text(msg);
+          }
+          WsMessage::B(bin) => {
+            ctx.binary(bin);
+          }
+        }
     }
 }
 
@@ -81,18 +90,34 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for APodWs {
         msg: Result<ws::Message, ws::ProtocolError>,
         ctx: &mut Self::Context,
     ) {
-        println!("handle msg={:?}", &msg);
+        //println!("handle msg={:?}", &msg);
         match msg {
             Ok(ws::Message::Ping(msg)) => ctx.pong(&msg),
             Ok(ws::Message::Text(text)) => handle_ws_msg(self, ctx, text), //ctx.text(text),
-            Ok(ws::Message::Binary(bin)) => (),
+            Ok(ws::Message::Binary(bin)) => handle_ws_bin(self, ctx, &bin[..]),
             _ => (),
         }
     }
 
     fn finished(&mut self, ctx: &mut Self::Context) {
       ctx.stop();
-      // TODO remove self from self.data.lock().unwrap().clients
+      // Trim client list
+      for _ in 0..4 {
+        let mut clients = &mut self.data.lock().unwrap().clients;
+        let mut idx_to_rm: Option<usize> = None;
+        for i in 0..clients.len() {
+          if let Err(e) = clients[i].try_send(WsMessage::S("{}".to_string())) {
+            // this is it!
+            idx_to_rm = Some(i);
+            break;
+          }
+        }
+
+        if let Some(idx_to_rm) = idx_to_rm {
+          clients.remove(idx_to_rm);
+        }
+      }
+
     }
 }
 
@@ -109,6 +134,16 @@ impl Default for GlobalData {
   }
 }
 
+fn handle_ws_bin(ws: &mut APodWs, ctx: &mut ws::WebsocketContext<APodWs>, bin: &[u8]) {
+  // Anytime someone sends the server data we forward it to everyone else,
+  // including the sender.
+  for client in &ws.data.lock().unwrap().clients {
+    if let Err(e) = client.try_send(WsMessage::B(bin.to_vec())) {
+      println!("Error sending bin to client: {}", e);
+    }
+  }
+}
+
 fn handle_ws_msg(ws: &mut APodWs, ctx: &mut ws::WebsocketContext<APodWs>, text: String) {
   // Parse JSON
   let json: serde_json::Result<serde_json::Value> = serde_json::from_str(&text[..]);
@@ -120,7 +155,7 @@ fn handle_ws_msg(ws: &mut APodWs, ctx: &mut ws::WebsocketContext<APodWs>, text: 
   // Anytime someone sends the server data we forward it to everyone else,
   // including the sender.
   for client in &ws.data.lock().unwrap().clients {
-    if let Err(e) = client.try_send(WsMessage(text.clone())) {
+    if let Err(e) = client.try_send(WsMessage::S(text.clone())) {
       println!("Error sending msg to client: {}", e);
     }
   }
