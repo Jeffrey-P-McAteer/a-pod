@@ -48,6 +48,12 @@ window.ws.onopen = function (event) {
 window.ws.onmessage = function (event) {
   console.log(event.data);
   window.log_e.innerHTML += event.data+'\n';
+  var data = JSON.parse(event.data);
+  if (data['event'] == 'lan-ip') {
+    var ip = data['ip'];
+    var p = document.getElementById('private_link');
+    p.innerHTML = location.protocol+'//'+ip+(location.port ? ':'+location.port: '');
+  }
 };
 
 </script>

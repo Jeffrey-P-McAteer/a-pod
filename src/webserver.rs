@@ -105,22 +105,18 @@ fn handle_ws_msg(ws: &mut APodWs, ctx: &mut ws::WebsocketContext<APodWs>, text: 
     Ok(j) => j,
   };
 
-  // // Add self to global list if new
-  // if json["event"] == json!("follower-joined") || json["event"] == json!("leader-joined") {
-  //   // ignore?
-  // }
-  // else {
-        
-
-  // }
-
+  // Anytime someone sends the server data we forward it to everyone else,
+  // including the sender.
   for client in &ws.data.lock().unwrap().clients {
     if let Err(e) = client.try_send(WsMessage(text.clone())) {
       println!("Error sending msg to client: {}", e);
     }
   }
 
-  //println!("ws.data.clients = {:?}", ws.data.lock().unwrap().clients);
+  if json["event"] == json!("leader-joined") {
+    // Lookup our LAN IP and send it to the leader
+    ctx.text(format!(r#"{{ "event":"lan-ip", "ip": "{}" }}"#, get_lan_ip()));
+  }
 
 }
 
