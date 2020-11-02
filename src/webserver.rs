@@ -1,25 +1,56 @@
 
-use actix::{Actor, StreamHandler};
-use actix_web::{web, App, Error, HttpRequest, HttpResponse, HttpServer};
+use actix::{
+  Actor, StreamHandler, Addr
+};
+use actix_web::{
+  web, App, Error, HttpRequest, HttpResponse, HttpServer
+};
 use actix_web_actors::ws;
 use actix_rt;
 
+use actix::prelude::*;
+
 use rust_embed::RustEmbed;
 
+use serde_json;
+use serde_json::json;
+
+use std::sync::{
+  Mutex
+};
 
 #[derive(RustEmbed)]
 #[folder = "src/www"]
 struct WWWAssets;
 
 /// Define HTTP actor
-struct MyWs;
+/// One of these is made for each websocket connection
+struct APodWs {
+  pub num: usize,
+  pub data: web::Data<Mutex<GlobalData>>,
+}
 
-impl Actor for MyWs {
+impl APodWs {
+  pub fn new(data: web::Data<Mutex<GlobalData>>) -> Self {
+    let num = data.lock().unwrap().clients.len();
+    APodWs {
+      num: num,
+      data: data
+    }
+  }
+}
+
+
+impl Actor for APodWs {
     type Context = ws::WebsocketContext<Self>;
 }
 
 /// Handler for ws::Message message
-impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for MyWs {
+impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for APodWs {
+    fn started(&mut self, ctx: &mut Self::Context) {
+        self.data.lock().unwrap().clients.push(self.num as u8);
+    }
+
     fn handle(
         &mut self,
         msg: Result<ws::Message, ws::ProtocolError>,
@@ -27,26 +58,58 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for MyWs {
     ) {
         match msg {
             Ok(ws::Message::Ping(msg)) => ctx.pong(&msg),
-            Ok(ws::Message::Text(text)) => ctx.text(text),
-            Ok(ws::Message::Binary(bin)) => ctx.binary(bin),
+            Ok(ws::Message::Text(text)) => handle_ws_msg(self, ctx, text), //ctx.text(text),
+            Ok(ws::Message::Binary(bin)) => (),
             _ => (),
         }
     }
 }
 
+struct GlobalData {
+  pub clients: Vec<u8>
+}
+
+impl Default for GlobalData {
+  fn default() -> Self {
+    println!("GlobalData::default run!");
+    GlobalData {
+      clients: vec![]
+    }
+  }
+}
+
+fn handle_ws_msg(ws: &mut APodWs, ctx: &mut ws::WebsocketContext<APodWs>, text: String) {
+  // Parse JSON
+  let json: serde_json::Result<serde_json::Value> = serde_json::from_str(&text[..]);
+  let json = match json {
+    Err(e) => { return; },
+    Ok(j) => j,
+  };
+
+  // // Add self to global list if new
+  // if json["event"] == json!("follower-joined") || json["event"] == json!("leader-joined") {
+  //   // ignore?
+  // }
+  // else {
+        
+
+  // }
+
+  println!("ws.data.clients = {:?}", ws.data.lock().unwrap().clients);
+
+}
+
 // This fn upgrades /ws/ http requests to a websocket connection
 // which may stream events to/from the GUI
-async fn ws_handler(req: HttpRequest, stream: web::Payload) -> Result<HttpResponse, Error> {
-    println!("ws_handler");
-    let resp = ws::start(MyWs {}, &req, stream);
-    println!("{:?}", resp);
+async fn ws_handler(req: HttpRequest, stream: web::Payload, data: web::Data<Mutex<GlobalData>>) -> Result<HttpResponse, Error> {
+    let resp = ws::start(APodWs::new(data), &req, stream);
+    //println!("{:?}", resp);
     resp
 }
 
 // This fn grabs assets and returns them
 async fn index(req: HttpRequest, _stream: web::Payload) -> HttpResponse {
-  use std::net::{IpAddr, Ipv4Addr, SocketAddr};
-
+  
   // We perform some common routing tactics here
   let mut r_path = req.path();
   if r_path == "/" {
@@ -98,6 +161,7 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>>  {
 
   HttpServer::new(||
       App::new()
+        .app_data( web::Data::new( Mutex::new( GlobalData::default() ) ) )
         .route("/ws", web::get().to(ws_handler))
         .route("/", web::get().to(index))
         .default_service(
@@ -105,6 +169,8 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>>  {
         )
 
     )
+    .workers(1)
+    .backlog(16)
     .bind(&address)?
     .run();
 

@@ -25,7 +25,8 @@ x.onreadystatechange = function() {
       // TODO this is only valid for ipv4 ranges
       const ipRegex = /[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}/;
       var p = document.getElementById('public_link');
-      const pub_ip = x.responseText.match(ipRegex)[0];
+      var matches = x.responseText.match(ipRegex);
+      const pub_ip = (matches && matches.length) > 0? matches[0] : "Unknown IP";
 
       var pub_url = location.protocol+'//'+pub_ip+(location.port ? ':'+location.port: '');
       p.innerHTML = pub_url;
@@ -39,6 +40,9 @@ window.ws = new WebSocket(window.base_url_ws);
 
 window.ws.onopen = function (event) {
   // We don't have any data we're interested in
+  window.ws.send(JSON.stringify({
+    'event': 'leader-joined'
+  }));
 };
 
 window.ws.onmessage = function (event) {

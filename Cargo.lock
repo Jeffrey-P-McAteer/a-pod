@@ -14,6 +14,7 @@ dependencies = [
  "ctrlc",
  "mime_guess",
  "rust-embed",
+ "serde_json",
  "web-view",
  "winapi 0.3.9",
 ]
