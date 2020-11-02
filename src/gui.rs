@@ -1,21 +1,52 @@
 
+use webbrowser;
+
+use crate::webserver;
+
 use crate::APP_NAME;
 use crate::HTTP_PORT;
+
 
 pub fn main() -> Result<(), Box<dyn std::error::Error>> {
   hide_console_on_windows();
 
-  let w = web_view::builder()
-          .title(APP_NAME)
-          .content(web_view::Content::Url(format!("http://127.0.0.1:{}/leader.html", HTTP_PORT)))
-          .size(600, 400)
-          .resizable(true)
-          .debug(false)
-          .user_data(())
-          .invoke_handler(|_webview, _arg| Ok(()))
-          .build()?;
+  // The original plan was to use web-view to open
+  // a native window, then let the user close that window
+  // to exit the app.
+
+  // Due to TLS requirements (navigator.getUserMedia is only available over TLS)
+  // we now open a web browser and bind to the system tray;
+  // when the "quit" item is selected from the tray menu we exit the process.
+
+  let leader_url = format!("https://127.0.0.1:{}/leader.html", HTTP_PORT);
+
+  // let w = web_view::builder()
+  //         .title(APP_NAME)
+  //         //.content(web_view::Content::Url(format!("https://127.0.0.1:{}/leader.html", HTTP_PORT)))
+  //         .content(web_view::Content::Html(include_str!("www/leader.html")))
+  //         .size(600, 400)
+  //         .resizable(true)
+  //         .debug(false)
+  //         .user_data(())
+  //         .invoke_handler(|_webview, _arg| Ok(()))
+  //         .build()?;
   
-  w.run()?;
+  // w.run()?;
+
+  webbrowser::open(&leader_url[..])?;
+
+  let mut app = systray::Application::new()?;
+
+  app.add_menu_item(APP_NAME, |window| {
+    Ok::<_, systray::Error>(())
+  });
+
+  app.add_menu_item("Quit", |window| {
+    window.quit();
+    Ok::<_, systray::Error>(())
+  })?;
+
+  app.wait_for_message()?;
 
   Ok(())
 }

@@ -1,10 +1,11 @@
 <h1>Follower UI</h1>
+<video id="selfcam" autoplay></video>
 <pre id="log">
 </pre>
 <script>
 // Listen to window.base_url + /ws/
 window.base_url_http = location.protocol+'//'+location.hostname+(location.port ? ':'+location.port: '');
-if (location.protocol === 'https') {
+if (location.protocol.indexOf('https') >= 0) {
   window.base_url_ws = 'wss://'+location.hostname+(location.port ? ':'+location.port: '')+'/ws';
 }
 else {
@@ -12,6 +13,7 @@ else {
 }
 
 window.log_e = document.getElementById('log');
+window.selfcam_e = document.getElementById('selfcam');
 
 window.ws = new WebSocket(window.base_url_ws);
 
@@ -34,6 +36,10 @@ window.ws.onmessage = function (event) {
   console.log(event.data);
   window.log_e.innerHTML += event.data+'\n';
 };
+
+// Begin asking for video
+navigator.mediaDevices.getUserMedia({video: true, audio: true}).
+  then((stream) => {window.selfcam_e.srcObject = stream});
 
 </script>
 

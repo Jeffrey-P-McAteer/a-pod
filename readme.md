@@ -24,4 +24,21 @@ cargo build --release --target=x86_64-pc-windows-gnu
 4. Connected followers will display in the leader's window
 
 
+# Design Notes
+
+Originally the plan was to do everything over HTTP, but modern
+browsers do [not allow access to getUserMedia](https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia#Privacy_and_security) unless it is in a secure context.
+
+Because of this constraint we will generate a temporary SSL key
+and use that to encrypt traffic; we have no way of knowing in advance what
+the end user's IP address is and I don't to burden them with setting up
+an SSL identity in advance. The goal is to accept that users will get an SSL
+warning message they will have to allow in order to share their cameras with the leader.
+
+To re-generate ssl credentials run:
+
+```bash
+openssl req -x509 -newkey rsa:4096 -nodes -keyout ssl/key.pem -out ssl/cert.pem -days 365 -subj '/CN=unknown-cn'
+```
+
 

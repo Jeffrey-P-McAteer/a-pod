@@ -17,6 +17,10 @@ use rust_embed::RustEmbed;
 use serde_json;
 use serde_json::json;
 
+use openssl::ssl::*;
+use openssl::pkey::{ PKey };
+use openssl::rsa::{ Rsa };
+
 use std::sync::{
   Mutex
 };
@@ -33,6 +37,7 @@ pub struct WsMessage(pub String);
 /// One of these is made for each websocket connection
 struct APodWs {
   pub num: usize,
+  pub is_leader: bool,
   pub data: web::Data<Mutex<GlobalData>>,
 }
 
@@ -41,6 +46,7 @@ impl APodWs {
     let num = data.lock().unwrap().clients.len();
     APodWs {
       num: num,
+      is_leader: false,
       data: data
     }
   }
@@ -75,12 +81,18 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for APodWs {
         msg: Result<ws::Message, ws::ProtocolError>,
         ctx: &mut Self::Context,
     ) {
+        println!("handle msg={:?}", &msg);
         match msg {
             Ok(ws::Message::Ping(msg)) => ctx.pong(&msg),
             Ok(ws::Message::Text(text)) => handle_ws_msg(self, ctx, text), //ctx.text(text),
             Ok(ws::Message::Binary(bin)) => (),
             _ => (),
         }
+    }
+
+    fn finished(&mut self, ctx: &mut Self::Context) {
+      ctx.stop();
+      // TODO remove self from self.data.lock().unwrap().clients
     }
 }
 
@@ -114,6 +126,7 @@ fn handle_ws_msg(ws: &mut APodWs, ctx: &mut ws::WebsocketContext<APodWs>, text: 
   }
 
   if json["event"] == json!("leader-joined") {
+    ws.is_leader = true;
     // Lookup our LAN IP and send it to the leader
     ctx.text(format!(r#"{{ "event":"lan-ip", "ip": "{}" }}"#, get_lan_ip()));
   }
@@ -173,12 +186,29 @@ async fn index(req: HttpRequest, _stream: web::Payload) -> HttpResponse {
 
 pub fn main() -> Result<(), Box<dyn std::error::Error>>  {
 
-  let local_ip = get_lan_ip();
-  println!("local_ip={}", local_ip); // TODO store globally so leader ws can ask for it
+  // Find/Generate an SSL identity
+  // EDIT nvm we just use include_str!() to grab a committed SSL key.
+  // Bad practices all around i know.
 
   let sys = actix_rt::System::new(crate::APP_NAME);
   
   let address = format!("0.0.0.0:{}", crate::HTTP_PORT);
+
+  let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
+  
+  let private_k = PKey::from_rsa(
+    Rsa::private_key_from_pem(include_bytes!("../ssl/key.pem")).unwrap()
+  ).unwrap();
+  let cert = openssl::x509::X509::from_pem(
+    include_bytes!("../ssl/cert.pem")
+  ).unwrap();
+
+  builder
+    .set_private_key(&private_k)
+    .unwrap();
+  builder
+    .set_certificate(&cert)
+    .unwrap();
 
   HttpServer::new(||
       App::new()
@@ -192,7 +222,7 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>>  {
     )
     .workers(1)
     .backlog(16)
-    .bind(&address)?
+    .bind_openssl(&address, builder)?
     .run();
 
   let x = sys.run()?;
