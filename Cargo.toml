@@ -13,7 +13,7 @@ web-view = { version = "0.6", features = [] }
 actix-web-actors = "3.0"
 actix = "0.10.0"
 actix-web = { version = "3.0.0", features = ["openssl"] }
-openssl = { version = "0.10", features = ["v110"] }
+openssl = { version = "0.10", features = ["v110", "vendored"] }
 actix-http = "2.0.0"
 actix-codec = "0.3.0"
 actix-rt = "1.1.1"
