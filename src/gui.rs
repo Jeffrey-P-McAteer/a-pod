@@ -37,7 +37,10 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
 
   let mut app = systray::Application::new()?;
 
-  app.add_menu_item(APP_NAME, |window| {
+  app.add_menu_item(APP_NAME, move |window| {
+    if let Err(e) = webbrowser::open(&leader_url[..]) {
+      println!("e={}", e);
+    }
     Ok::<_, systray::Error>(())
   });
 
