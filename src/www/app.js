@@ -31,6 +31,33 @@ function pageReady() {
   } else {
     alert('Your browser does not support getUserMedia API');
   }
+
+  if (window.location.toString().indexOf('leader.html') >= 0) {
+    // We assume the websocket connects after 3 seconds
+    setTimeout(function() {
+      serverConnection.send(JSON.stringify({
+        'event': 'leader-joined'
+      }));
+    }, 3200);
+  }
+
+  // Ask cloudfare who we are
+  var x = new XMLHttpRequest();
+  x.onreadystatechange = function() { 
+      if (x.readyState == 4 && x.status == 200) {
+        // TODO this is only valid for ipv4 ranges
+        const ipRegex = /[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}/;
+        var p = document.getElementById('public_link');
+        var matches = x.responseText.match(ipRegex);
+        const pub_ip = (matches && matches.length) > 0? matches[0] : "Unknown IP";
+
+        var pub_url = location.protocol+'//'+pub_ip+(location.port ? ':'+location.port: '');
+        p.innerHTML = pub_url;
+      }
+  }
+  x.open("GET", 'https://www.cloudflare.com/cdn-cgi/trace', true); // true means asynchronous
+  x.send(null);
+
 }
 
 function getUserMediaSuccess(stream) {
@@ -50,9 +77,20 @@ function start(isCaller) {
 }
 
 function gotMessageFromServer(message) {
-  if(!peerConnection) start(false);
+  if(!peerConnection) {
+    start(false);
+  }
 
   var signal = JSON.parse(message.data);
+
+  if (signal.event) {
+    // This is one of ours
+    if (signal.event == "lan-ip") {
+      var ip = signal['ip'];
+      var p = document.getElementById('private_link');
+      p.innerHTML = location.protocol+'//'+ip+(location.port ? ':'+location.port: '');
+    }
+  }
 
   // Ignore messages from ourself
   if(signal.uuid == uuid) return;
