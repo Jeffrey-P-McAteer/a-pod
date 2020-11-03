@@ -6,6 +6,40 @@
 </pre>
 
 <script>
+///// 3rdPARTY: https://gist.github.com/salzhrani/02a6e807f24785a4d34b
+if( !HTMLCanvasElement.prototype.toBlob ) {
+  Object.defineProperty( HTMLCanvasElement.prototype, 'toBlob',
+  { 
+    value: function( callback, type, quality )
+    {
+      var bin = atob( this.toDataURL( type, quality ).split(',')[1] ),
+      len = bin.length,
+      len32 = len >> 2,
+      a8 = new Uint8Array( len ),
+      a32 = new Uint32Array( a8.buffer, 0, len32 );
+
+      for( var i=0, j=0; i < len32; i++ )
+      {
+        a32[i] = bin.charCodeAt(j++) |
+          bin.charCodeAt(j++) << 8 |
+          bin.charCodeAt(j++) << 16 |
+          bin.charCodeAt(j++) << 24;
+      }
+
+      var tailLength = len & 3;
+
+      while( tailLength-- )
+      {
+        a8[ j ] = bin.charCodeAt(j++);
+      }
+
+      callback( new Blob( [a8], {'type': type || 'image/jpeg'} ) );
+    }
+  });
+}
+///// end 3rdparty
+
+
 // Listen to window.base_url + /ws/
 window.base_url_http = location.protocol+'//'+location.hostname+(location.port ? ':'+location.port: '');
 if (location.protocol.indexOf('https') >= 0) {
@@ -54,30 +88,23 @@ navigator.mediaDevices.getUserMedia({video: true, audio: true}).
     window.selfcam_e.volume = 0;
   });
 
-function dataURItoBlob(dataURI) {
-    var binary = atob(dataURI.split(',')[1]);
-    var array = [];
-    for(var i = 0; i < binary.length; i++) {
-        array.push(binary.charCodeAt(i));
-    }
-    return new Blob([new Uint8Array(array)], {type: 'image/jpeg'});
-}
-
-// We forward the video contents every 80ms
-setInterval(function() {
+// We forward the video contents every "frame"
+window.selfcam_e.addEventListener('timeupdate', function(e) {
   if (window.selfcam_e.paused !== true) {
-    var canvas = document.createElement('canvas');
-    canvas.height = window.selfcam_e.videoHeight;
-    canvas.width = window.selfcam_e.videoWidth;
-    var ctx = canvas.getContext('2d');
-    ctx.drawImage(window.selfcam_e, 0, 0, canvas.width, canvas.height);
+    if (!window.hidden_canvas) {
+      window.hidden_canvas = document.createElement('canvas');
+      window.hidden_canvas.height = window.selfcam_e.videoHeight / 2;
+      window.hidden_canvas.width = window.selfcam_e.videoWidth / 2;
+    }
+    var ctx = window.hidden_canvas.getContext('2d');
+    ctx.drawImage(window.selfcam_e, 0, 0, window.hidden_canvas.width, window.hidden_canvas.height);
 
-    var img = canvas.toDataURL("image/jpeg");
-    var blob = dataURItoBlob(img);
-    window.ws.send(blob);
+    window.hidden_canvas.toBlob(function (blob) {
+      window.ws.send(blob);
+    }, 'image/jpeg');
 
   }
-}, 80);
+}, false);
 
 </script>
 

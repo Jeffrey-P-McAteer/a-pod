@@ -101,23 +101,6 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for APodWs {
 
     fn finished(&mut self, ctx: &mut Self::Context) {
       ctx.stop();
-      // Trim client list
-      for _ in 0..4 {
-        let mut clients = &mut self.data.lock().unwrap().clients;
-        let mut idx_to_rm: Option<usize> = None;
-        for i in 0..clients.len() {
-          if let Err(e) = clients[i].try_send(WsMessage::S("{}".to_string())) {
-            // this is it!
-            idx_to_rm = Some(i);
-            break;
-          }
-        }
-
-        if let Some(idx_to_rm) = idx_to_rm {
-          clients.remove(idx_to_rm);
-        }
-      }
-
     }
 }
 
@@ -137,10 +120,16 @@ impl Default for GlobalData {
 fn handle_ws_bin(ws: &mut APodWs, ctx: &mut ws::WebsocketContext<APodWs>, bin: &[u8]) {
   // Anytime someone sends the server data we forward it to everyone else,
   // including the sender.
-  for client in &ws.data.lock().unwrap().clients {
-    if let Err(e) = client.try_send(WsMessage::B(bin.to_vec())) {
+  let mut clients = &mut ws.data.lock().unwrap().clients;
+  let mut idx_to_rm: Option<usize> = None;
+  for i in 0..clients.len() {
+    if let Err(e) = clients[i].try_send(WsMessage::B(bin.to_vec())) {
       println!("Error sending bin to client: {}", e);
+      idx_to_rm = Some(i);
     }
+  }
+  if let Some(idx_to_rm) = idx_to_rm {
+    clients.remove(idx_to_rm);
   }
 }
 
@@ -154,10 +143,17 @@ fn handle_ws_msg(ws: &mut APodWs, ctx: &mut ws::WebsocketContext<APodWs>, text: 
 
   // Anytime someone sends the server data we forward it to everyone else,
   // including the sender.
-  for client in &ws.data.lock().unwrap().clients {
-    if let Err(e) = client.try_send(WsMessage::S(text.clone())) {
-      println!("Error sending msg to client: {}", e);
+
+  let mut clients = &mut ws.data.lock().unwrap().clients;
+  let mut idx_to_rm: Option<usize> = None;
+  for i in 0..clients.len() {
+    if let Err(e) = clients[i].try_send(WsMessage::S(text.clone())) {
+      println!("Error sending text to client: {}", e);
+      idx_to_rm = Some(i);
     }
+  }
+  if let Some(idx_to_rm) = idx_to_rm {
+    clients.remove(idx_to_rm);
   }
 
   if json["event"] == json!("leader-joined") {
