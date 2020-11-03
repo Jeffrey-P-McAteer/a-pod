@@ -1,8 +1,6 @@
 
 use webbrowser;
 
-use crate::webserver;
-
 use crate::APP_NAME;
 use crate::HTTP_PORT;
 
@@ -37,12 +35,12 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
 
   let mut app = systray::Application::new()?;
 
-  app.add_menu_item(APP_NAME, move |window| {
+  app.add_menu_item(APP_NAME, move |_window| {
     if let Err(e) = webbrowser::open(&leader_url[..]) {
       println!("e={}", e);
     }
     Ok::<_, systray::Error>(())
-  });
+  })?;
 
   app.add_menu_item("Quit", |window| {
     window.quit();

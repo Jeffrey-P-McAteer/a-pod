@@ -1,6 +1,6 @@
 
 use actix::{
-  Actor, StreamHandler, Addr, Handler
+  Actor, StreamHandler, Handler
 };
 use actix_web::{
   web, App, Error, HttpRequest, HttpResponse, HttpServer
@@ -8,7 +8,7 @@ use actix_web::{
 use actix_web_actors::ws;
 use actix_rt;
 
-use actix_derive::{Message, MessageResponse};
+use actix_derive::{Message};
 
 use actix::prelude::*;
 
@@ -117,10 +117,10 @@ impl Default for GlobalData {
   }
 }
 
-fn handle_ws_bin(ws: &mut APodWs, ctx: &mut ws::WebsocketContext<APodWs>, bin: &[u8]) {
+fn handle_ws_bin(ws: &mut APodWs, _ctx: &mut ws::WebsocketContext<APodWs>, bin: &[u8]) {
   // Anytime someone sends the server data we forward it to everyone else,
   // including the sender.
-  let mut clients = &mut ws.data.lock().unwrap().clients;
+  let clients = &mut ws.data.lock().unwrap().clients;
   let mut idx_to_rm: Option<usize> = None;
   for i in 0..clients.len() {
     if let Err(e) = clients[i].try_send(WsMessage::B(bin.to_vec())) {
@@ -131,20 +131,23 @@ fn handle_ws_bin(ws: &mut APodWs, ctx: &mut ws::WebsocketContext<APodWs>, bin: &
   if let Some(idx_to_rm) = idx_to_rm {
     clients.remove(idx_to_rm);
   }
+
+  let _todo_save_me = bin.to_vec();
+
 }
 
 fn handle_ws_msg(ws: &mut APodWs, ctx: &mut ws::WebsocketContext<APodWs>, text: String) {
   // Parse JSON
   let json: serde_json::Result<serde_json::Value> = serde_json::from_str(&text[..]);
   let json = match json {
-    Err(e) => { return; },
+    Err(_e) => { return; },
     Ok(j) => j,
   };
 
   // Anytime someone sends the server data we forward it to everyone else,
   // including the sender.
 
-  let mut clients = &mut ws.data.lock().unwrap().clients;
+  let clients = &mut ws.data.lock().unwrap().clients;
   let mut idx_to_rm: Option<usize> = None;
   for i in 0..clients.len() {
     if let Err(e) = clients[i].try_send(WsMessage::S(text.clone())) {
