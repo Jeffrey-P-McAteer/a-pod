@@ -1,105 +1,13 @@
 <h1>Follower UI</h1>
 
-<video id="selfcam" volume="0" autoplay></video>
-<video id="remotecam" autoplay></video>
+<video id="localVideo" autoplay muted style="width:40%;"></video>
+<video id="remoteVideo" autoplay style="width:40%;"></video>
+<input type="button" id="start" onclick="start(true)" value="Start Video"></input>
 
 <pre id="log">
 </pre>
 
-<script>
-// Polyscript BS because vendor extensions XF
-navigator.getUserMedia = navigator.getUserMedia || navigator.mozGetUserMedia || navigator.webkitGetUserMedia;
-window.RTCPeerConnection = window.RTCPeerConnection || window.mozRTCPeerConnection || window.webkitRTCPeerConnection;
-window.RTCIceCandidate = window.RTCIceCandidate || window.mozRTCIceCandidate || window.webkitRTCIceCandidate;
-window.RTCSessionDescription = window.RTCSessionDescription || window.mozRTCSessionDescription || window.webkitRTCSessionDescription;
-
-// Taken from http://stackoverflow.com/a/105074/515584
-// Strictly speaking, it's not a real UUID, but it gets the job done here
-function createUUID() {
-  function s4() {
-    return Math.floor((1 + Math.random()) * 0x10000).toString(16).substring(1);
-  }
-  return s4() + s4() + '-' + s4() + '-' + s4() + '-' + s4() + '-' + s4() + s4() + s4();
-}
-
-var peerConnectionConfig = {
-  'iceServers': [
-    {'urls': 'stun:stun.stunprotocol.org:3478'},
-    {'urls': 'stun:stun.l.google.com:19302'},
-  ]
-};
-
-// Listen to window.base_url + /ws/
-window.base_url_http = location.protocol+'//'+location.hostname+(location.port ? ':'+location.port: '');
-if (location.protocol.indexOf('https') >= 0) {
-  window.base_url_ws = 'wss://'+location.hostname+(location.port ? ':'+location.port: '')+'/ws';
-}
-else {
-  window.base_url_ws = 'ws://'+location.hostname+(location.port ? ':'+location.port: '')+'/ws';
-}
-
-window.log_e = document.getElementById('log');
-window.selfcam_e = document.getElementById('selfcam');
-window.remotecam_e = document.getElementById('remotecam');
-window.uuid = createUUID();
-
-window.ws = new WebSocket(window.base_url_ws);
-
-window.ws.onopen = function (event) {
-  var name = localStorage.getItem('name');
-  if (!name) {
-    name = window.prompt('What is your name?', 'idk man');
-    localStorage.setItem('name', name);
-  }
-
-  // Tell the server who we are
-  window.ws.send(JSON.stringify({
-    'event': 'follower-joined',
-    'name': name
-  }));
-
-};
-
-window.ws.onmessage = function (event) {
-  if (typeof event.data === "string") {
-    console.log(event.data);
-    window.log_e.innerHTML += event.data+'\n';
-  }
-  else {
-    //console.log('event.data must be binary');
-  }
-};
-
-// Begin asking for video
-navigator.mediaDevices.getUserMedia({video: true, audio: true}).
-  then((stream) => {
-    // Save stream to local view
-    window.self_stream = stream;
-    window.selfcam_e.srcObject = stream;
-    window.selfcam_e.volume = 0;
-    // Forward audio over RTC
-
-    window.peerConnection = new RTCPeerConnection(peerConnectionConfig);
-    window.peerConnection.onicecandidate = function (event) {
-      if (event.candidate != null) {
-        window.ws.send(JSON.stringify({'ice': event.candidate, 'uuid': window.uuid}));
-      }
-    };
-    window.peerConnection.ontrack = function (event) {
-      console.log("event.streams", event.streams);
-      window.remotecam_e.srcObject = event.streams[0];
-    };
-    window.peerConnection.addStream(window.self_stream);
-    console.log("window.self_stream", window.self_stream);
-
-    // We must initiate call to leader
-    window.peerConnection.createOffer().then(function (description) {
-      window.peerConnection.setLocalDescription(description).then(function() {
-        window.ws.send(JSON.stringify({'sdp': window.peerConnection.localDescription, 'uuid': window.uuid}));
-      }).catch(function (e) { console.log(e); });
-    }).catch(function (e) { console.log(e); });
-
-  });
-
+<script src="app.js"></script>
+<script type="text/javascript">
+    pageReady();
 </script>
-
