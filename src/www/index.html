@@ -1,44 +1,33 @@
 <h1>Follower UI</h1>
 
 <video id="selfcam" volume="0" autoplay></video>
+<video id="remotecam" autoplay></video>
 
 <pre id="log">
 </pre>
 
 <script>
-///// 3rdPARTY: https://gist.github.com/salzhrani/02a6e807f24785a4d34b
-if( !HTMLCanvasElement.prototype.toBlob ) {
-  Object.defineProperty( HTMLCanvasElement.prototype, 'toBlob',
-  { 
-    value: function( callback, type, quality )
-    {
-      var bin = atob( this.toDataURL( type, quality ).split(',')[1] ),
-      len = bin.length,
-      len32 = len >> 2,
-      a8 = new Uint8Array( len ),
-      a32 = new Uint32Array( a8.buffer, 0, len32 );
+// Polyscript BS because vendor extensions XF
+navigator.getUserMedia = navigator.getUserMedia || navigator.mozGetUserMedia || navigator.webkitGetUserMedia;
+window.RTCPeerConnection = window.RTCPeerConnection || window.mozRTCPeerConnection || window.webkitRTCPeerConnection;
+window.RTCIceCandidate = window.RTCIceCandidate || window.mozRTCIceCandidate || window.webkitRTCIceCandidate;
+window.RTCSessionDescription = window.RTCSessionDescription || window.mozRTCSessionDescription || window.webkitRTCSessionDescription;
 
-      for( var i=0, j=0; i < len32; i++ )
-      {
-        a32[i] = bin.charCodeAt(j++) |
-          bin.charCodeAt(j++) << 8 |
-          bin.charCodeAt(j++) << 16 |
-          bin.charCodeAt(j++) << 24;
-      }
-
-      var tailLength = len & 3;
-
-      while( tailLength-- )
-      {
-        a8[ j ] = bin.charCodeAt(j++);
-      }
-
-      callback( new Blob( [a8], {'type': type || 'image/jpeg'} ) );
-    }
-  });
+// Taken from http://stackoverflow.com/a/105074/515584
+// Strictly speaking, it's not a real UUID, but it gets the job done here
+function createUUID() {
+  function s4() {
+    return Math.floor((1 + Math.random()) * 0x10000).toString(16).substring(1);
+  }
+  return s4() + s4() + '-' + s4() + '-' + s4() + '-' + s4() + '-' + s4() + s4() + s4();
 }
-///// end 3rdparty
 
+var peerConnectionConfig = {
+  'iceServers': [
+    {'urls': 'stun:stun.stunprotocol.org:3478'},
+    {'urls': 'stun:stun.l.google.com:19302'},
+  ]
+};
 
 // Listen to window.base_url + /ws/
 window.base_url_http = location.protocol+'//'+location.hostname+(location.port ? ':'+location.port: '');
@@ -51,6 +40,8 @@ else {
 
 window.log_e = document.getElementById('log');
 window.selfcam_e = document.getElementById('selfcam');
+window.remotecam_e = document.getElementById('remotecam');
+window.uuid = createUUID();
 
 window.ws = new WebSocket(window.base_url_ws);
 
@@ -76,7 +67,6 @@ window.ws.onmessage = function (event) {
   }
   else {
     //console.log('event.data must be binary');
-
   }
 };
 
@@ -84,27 +74,32 @@ window.ws.onmessage = function (event) {
 navigator.mediaDevices.getUserMedia({video: true, audio: true}).
   then((stream) => {
     // Save stream to local view
+    window.self_stream = stream;
     window.selfcam_e.srcObject = stream;
     window.selfcam_e.volume = 0;
+    // Forward audio over RTC
+
+    window.peerConnection = new RTCPeerConnection(peerConnectionConfig);
+    window.peerConnection.onicecandidate = function (event) {
+      if (event.candidate != null) {
+        window.ws.send(JSON.stringify({'ice': event.candidate, 'uuid': window.uuid}));
+      }
+    };
+    window.peerConnection.ontrack = function (event) {
+      console.log("event.streams", event.streams);
+      window.remotecam_e.srcObject = event.streams[0];
+    };
+    window.peerConnection.addStream(window.self_stream);
+    console.log("window.self_stream", window.self_stream);
+
+    // We must initiate call to leader
+    window.peerConnection.createOffer().then(function (description) {
+      window.peerConnection.setLocalDescription(description).then(function() {
+        window.ws.send(JSON.stringify({'sdp': window.peerConnection.localDescription, 'uuid': window.uuid}));
+      }).catch(function (e) { console.log(e); });
+    }).catch(function (e) { console.log(e); });
+
   });
-
-// We forward the video contents every "frame"
-window.selfcam_e.addEventListener('timeupdate', function(e) {
-  if (window.selfcam_e.paused !== true) {
-    if (!window.hidden_canvas) {
-      window.hidden_canvas = document.createElement('canvas');
-      window.hidden_canvas.height = window.selfcam_e.videoHeight / 2;
-      window.hidden_canvas.width = window.selfcam_e.videoWidth / 2;
-    }
-    var ctx = window.hidden_canvas.getContext('2d');
-    ctx.drawImage(window.selfcam_e, 0, 0, window.hidden_canvas.width, window.hidden_canvas.height);
-
-    window.hidden_canvas.toBlob(function (blob) {
-      window.ws.send(blob);
-    }, 'image/jpeg');
-
-  }
-}, false);
 
 </script>
 
