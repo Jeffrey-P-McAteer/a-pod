@@ -170,9 +170,9 @@ fn handle_ws_msg(ws: &mut APodWs, ctx: &mut ws::WebsocketContext<APodWs>, text: 
     let clients = &mut ws.data.lock().unwrap().clients;
     let mut idx_to_rm: Option<usize> = None;
     for i in 0..clients.len() {
-      if i == ws.num {
-        continue;
-      }
+      // if i == ws.num {
+      //   continue;
+      // }
       if let Err(e) = clients[i].try_send(WsMessage::S(text.clone())) {
         println!("Error sending text to client: {}", e);
         idx_to_rm = Some(i);
