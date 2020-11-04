@@ -121,7 +121,7 @@ struct GlobalData {
 impl Default for GlobalData {
   fn default() -> Self {
     println!("GlobalData::default run!");
-    let mut save_dir = PathBuf::from(".");
+    let mut save_dir = env::current_dir().expect("Could not get current_dir");
     if let Some(arg) = env::args().skip(1).next() {
       save_dir = PathBuf::from(arg);
     }
