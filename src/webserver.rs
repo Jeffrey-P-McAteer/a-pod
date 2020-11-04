@@ -23,6 +23,7 @@ use openssl::rsa::{ Rsa };
 
 use nfd;
 
+use std::env;
 use std::sync::{
   Mutex
 };
@@ -120,9 +121,13 @@ struct GlobalData {
 impl Default for GlobalData {
   fn default() -> Self {
     println!("GlobalData::default run!");
+    let mut save_dir = PathBuf::from(".");
+    if let Some(arg) = env::args().skip(1).next() {
+      save_dir = PathBuf::from(arg);
+    }
     GlobalData {
       clients: vec![],
-      save_dir: PathBuf::from(".")
+      save_dir: save_dir
     }
   }
 }
@@ -133,6 +138,9 @@ fn handle_ws_bin(ws: &mut APodWs, _ctx: &mut ws::WebsocketContext<APodWs>, bin: 
   let clients = &mut ws.data.lock().unwrap().clients;
   let mut idx_to_rm: Option<usize> = None;
   for i in 0..clients.len() {
+    if i == ws.num {
+      continue;
+    }
     if let Err(e) = clients[i].try_send(WsMessage::B(bin.to_vec())) {
       println!("Error sending bin to client: {}", e);
       idx_to_rm = Some(i);
@@ -147,6 +155,7 @@ fn handle_ws_bin(ws: &mut APodWs, _ctx: &mut ws::WebsocketContext<APodWs>, bin: 
 }
 
 fn handle_ws_msg(ws: &mut APodWs, ctx: &mut ws::WebsocketContext<APodWs>, text: String) {
+  println!("ws text={}", &text[..]);
   // Parse JSON
   let json: serde_json::Result<serde_json::Value> = serde_json::from_str(&text[..]);
   let json = match json {
@@ -155,18 +164,23 @@ fn handle_ws_msg(ws: &mut APodWs, ctx: &mut ws::WebsocketContext<APodWs>, text: 
   };
 
   // Anytime someone sends the server data we forward it to everyone else,
-  // including the sender.
+  // excluding the sender
 
-  let clients = &mut ws.data.lock().unwrap().clients;
-  let mut idx_to_rm: Option<usize> = None;
-  for i in 0..clients.len() {
-    if let Err(e) = clients[i].try_send(WsMessage::S(text.clone())) {
-      println!("Error sending text to client: {}", e);
-      idx_to_rm = Some(i);
+  {
+    let clients = &mut ws.data.lock().unwrap().clients;
+    let mut idx_to_rm: Option<usize> = None;
+    for i in 0..clients.len() {
+      if i == ws.num {
+        continue;
+      }
+      if let Err(e) = clients[i].try_send(WsMessage::S(text.clone())) {
+        println!("Error sending text to client: {}", e);
+        idx_to_rm = Some(i);
+      }
     }
-  }
-  if let Some(idx_to_rm) = idx_to_rm {
-    clients.remove(idx_to_rm);
+    if let Some(idx_to_rm) = idx_to_rm {
+      clients.remove(idx_to_rm);
+    }
   }
 
   if ws.is_leader {
@@ -174,12 +188,17 @@ fn handle_ws_msg(ws: &mut APodWs, ctx: &mut ws::WebsocketContext<APodWs>, text: 
     if json["event"] == json!("leader-joined") {
       // Lookup our LAN IP and send it to the leader
       ctx.text(format!(r#"{{ "event":"lan-ip", "ip": "{}" }}"#, get_lan_ip()));
+      // Tell leader about save dir
+      {
+        let save_dir_s = (&mut ws.data.lock().unwrap()).save_dir.to_string_lossy().to_string();
+        ctx.text(format!(r#"{{ "event":"set-save-dir", "save-dir": "{}" }}"#, &save_dir_s[..] ));
+      }
     }
     else if json["event"] == json!("pick-savedir") {
-      // if let Some(save_dir) = gui::fork_ask_for_dir() {
-      //   ctx.text(format!(r#"{{ "event":"set-save-dir", "save-dir": "{}" }}"#, &save_dir.to_string_lossy() ));
-      //   (&mut ws.data.lock().unwrap()).save_dir = save_dir;
-      // }
+      if let Some(save_dir) = gui::fork_ask_for_dir() {
+        ctx.text(format!(r#"{{ "event":"set-save-dir", "save-dir": "{}" }}"#, &save_dir.to_string_lossy() ));
+        (&mut ws.data.lock().unwrap()).save_dir = save_dir;
+      }
     }
   }
 

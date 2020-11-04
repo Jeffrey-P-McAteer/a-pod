@@ -99,6 +99,7 @@ function gotMessageFromServer(message) {
   }
 
   var signal = JSON.parse(message.data);
+  console.log(signal);
 
   if (signal.event) {
     // This is one of ours
