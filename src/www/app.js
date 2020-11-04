@@ -14,6 +14,7 @@ var peerConnectionConfig = {
 
 function pageReady() {
   uuid = createUUID();
+  window.is_leader = window.location.toString().indexOf('leader.html') >= 0;
 
   localVideo = document.getElementById('localVideo');
   remoteVideo = document.getElementById('remoteVideo');
@@ -32,13 +33,13 @@ function pageReady() {
     alert('Your browser does not support getUserMedia API');
   }
 
-  if (window.location.toString().indexOf('leader.html') >= 0) {
-    // We assume the websocket connects after 3 seconds
+  if (window.is_leader) {
+    // We assume the websocket connects after 2 seconds
     setTimeout(function() {
       serverConnection.send(JSON.stringify({
         'event': 'leader-joined'
       }));
-    }, 3200);
+    }, 2400);
   }
 
   // Ask cloudfare who we are
@@ -90,6 +91,11 @@ function gotMessageFromServer(message) {
       var p = document.getElementById('private_link');
       p.innerHTML = location.protocol+'//'+ip+(location.port ? ':'+location.port: '');
     }
+    else if (signal.event == "set-save-dir") {
+      var save_dir = signal['save-dir'];
+      var p = document.getElementById('save_dir');
+      p.innerHTML = save_dir;
+    }
   }
 
   // Ignore messages from ourself
@@ -140,4 +146,9 @@ function createUUID() {
   return s4() + s4() + '-' + s4() + '-' + s4() + '-' + s4() + '-' + s4() + s4() + s4();
 }
 
+function pickSaveDir() {
+  serverConnection.send(JSON.stringify({
+    'event': 'pick-savedir'
+  }));
+}
 

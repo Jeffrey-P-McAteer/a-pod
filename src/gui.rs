@@ -42,6 +42,13 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok::<_, systray::Error>(())
   })?;
 
+  app.add_menu_item("Pick Save Dir", |_window| {
+    if let Ok(nfd::Response::Okay(save_dir)) = nfd::open_pick_folder(None) {
+      println!("save_dir={}", save_dir);
+    }
+    Ok::<_, systray::Error>(())
+  })?;
+
   app.add_menu_item("Quit", |window| {
     window.quit();
     Ok::<_, systray::Error>(())

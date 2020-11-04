@@ -21,6 +21,8 @@ use openssl::ssl::*;
 use openssl::pkey::{ PKey };
 use openssl::rsa::{ Rsa };
 
+use nfd;
+
 use std::sync::{
   Mutex
 };
@@ -39,8 +41,11 @@ pub enum WsMessage {
 /// Define HTTP actor
 /// One of these is made for each websocket connection
 struct APodWs {
+  // Index in GlobalData.clients
   pub num: usize,
+  // Set on connection, is true if localhost
   pub is_leader: bool,
+  // A pointer to all the other clients via GlobalData
   pub data: web::Data<Mutex<GlobalData>>,
 }
 
@@ -159,10 +164,17 @@ fn handle_ws_msg(ws: &mut APodWs, ctx: &mut ws::WebsocketContext<APodWs>, text: 
     clients.remove(idx_to_rm);
   }
 
-  if json["event"] == json!("leader-joined") {
-    ws.is_leader = true;
-    // Lookup our LAN IP and send it to the leader
-    ctx.text(format!(r#"{{ "event":"lan-ip", "ip": "{}" }}"#, get_lan_ip()));
+  if ws.is_leader {
+    // Process leader-specific commands
+    if json["event"] == json!("leader-joined") {
+      // Lookup our LAN IP and send it to the leader
+      ctx.text(format!(r#"{{ "event":"lan-ip", "ip": "{}" }}"#, get_lan_ip()));
+    }
+    else if json["event"] == json!("pick-savedir") {
+      if let Ok(nfd::Response::Okay(save_dir)) = nfd::open_pick_folder(None) {
+        ctx.text(format!(r#"{{ "event":"set-save-dir", "save-dir": "{}" }}"#, save_dir));
+      }
+    }
   }
 
 }
@@ -170,7 +182,11 @@ fn handle_ws_msg(ws: &mut APodWs, ctx: &mut ws::WebsocketContext<APodWs>, text: 
 // This fn upgrades /ws/ http requests to a websocket connection
 // which may stream events to/from the GUI
 async fn ws_handler(req: HttpRequest, stream: web::Payload, data: web::Data<Mutex<GlobalData>>) -> Result<HttpResponse, Error> {
-    let resp = ws::start(APodWs::new(data), &req, stream);
+    let mut apod_ws = APodWs::new(data);
+    if let Some(addr) = req.peer_addr() {
+      apod_ws.is_leader = addr.ip().is_loopback();
+    }
+    let resp = ws::start(apod_ws, &req, stream);
     //println!("{:?}", resp);
     resp
 }
