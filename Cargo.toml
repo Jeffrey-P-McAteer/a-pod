@@ -31,6 +31,8 @@ webbrowser = "0.5.5"
 systray = "0.4.0"
 nfd = "0.0.4"
 
+palaver = "0.2.8"
+
 [target.x86_64-pc-windows-gnu.dependencies]
 winapi = {version = "0.3", features = ["wincon", "winuser"]}
 

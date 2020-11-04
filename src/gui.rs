@@ -1,4 +1,10 @@
 
+use palaver;
+
+use std::path::PathBuf;
+use std::process::Command;
+use std::str;
+
 use webbrowser;
 
 use crate::APP_NAME;
@@ -43,8 +49,8 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
   })?;
 
   app.add_menu_item("Pick Save Dir", |_window| {
-    if let Ok(nfd::Response::Okay(save_dir)) = nfd::open_pick_folder(None) {
-      println!("save_dir={}", save_dir);
+    if let Some(save_dir) = fork_with_arg("ask-for-dir") {
+      println!("save_dir={:?}", save_dir);
     }
     Ok::<_, systray::Error>(())
   })?;
@@ -105,4 +111,26 @@ fn hide_console_on_windows_win() {
 
 }
 
+pub fn fork_with_arg(arg: &str) -> Option<PathBuf> {
+  if let Ok(exe_p) = palaver::env::exe_path() {
+    let out = Command::new(&exe_p.to_string_lossy()[..])
+            .arg(arg)
+            .output()
+            .expect("failed to execute process");
+    let out_str = str::from_utf8(&out.stdout).expect("invalid utf-8!");
+    let out_str = out_str.trim();
+    let path = PathBuf::from(out_str);
+    if path.as_path().exists() {
+      return Some(path);
+    }
+  }
+  None
+}
+
+pub fn ask_for_directory() -> String {
+  if let Ok(nfd::Response::Okay(save_dir)) = nfd::open_pick_folder(None) {
+    return save_dir;
+  }
+  return String::new();
+}
 

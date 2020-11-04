@@ -1,4 +1,6 @@
 
+use std::env;
+
 mod webserver;
 mod gui;
 
@@ -8,6 +10,17 @@ pub const HTTP_PORT: u64 = 8443;
 pub const APP_NAME: &'static str = "A-Pod";
 
 fn main() {
+  // Process sub-"functions" which must be their own procs
+  // for stupid runtime/gtk/win32 threading reasons.
+  if let Some(arg) = env::args().skip(1).next() {
+    let arg = &arg[..];
+    if arg == "ask-for-dir" {
+      let d = gui::ask_for_directory();
+      println!("{}", d);
+      return;
+    }
+  }
+
   // Setup event handler for OS signals
   let e = ctrlc::set_handler(move || {
     std::process::exit(0);
