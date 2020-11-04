@@ -26,6 +26,9 @@ use nfd;
 use std::sync::{
   Mutex
 };
+use std::path::PathBuf;
+
+use crate::gui;
 
 #[derive(RustEmbed)]
 #[folder = "src/www"]
@@ -110,14 +113,16 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for APodWs {
 }
 
 struct GlobalData {
-  pub clients: Vec<Recipient<WsMessage>>
+  pub clients: Vec<Recipient<WsMessage>>,
+  pub save_dir: PathBuf,
 }
 
 impl Default for GlobalData {
   fn default() -> Self {
     println!("GlobalData::default run!");
     GlobalData {
-      clients: vec![]
+      clients: vec![],
+      save_dir: PathBuf::from(".")
     }
   }
 }
@@ -171,8 +176,9 @@ fn handle_ws_msg(ws: &mut APodWs, ctx: &mut ws::WebsocketContext<APodWs>, text: 
       ctx.text(format!(r#"{{ "event":"lan-ip", "ip": "{}" }}"#, get_lan_ip()));
     }
     else if json["event"] == json!("pick-savedir") {
-      if let Ok(nfd::Response::Okay(save_dir)) = nfd::open_pick_folder(None) {
-        ctx.text(format!(r#"{{ "event":"set-save-dir", "save-dir": "{}" }}"#, save_dir));
+      if let Some(save_dir) = gui::fork_ask_for_dir() {
+        ctx.text(format!(r#"{{ "event":"set-save-dir", "save-dir": "{}" }}"#, &save_dir.to_string_lossy() ));
+        (&mut ws.data.lock().unwrap()).save_dir = save_dir;
       }
     }
   }

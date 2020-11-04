@@ -49,8 +49,8 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
   })?;
 
   app.add_menu_item("Pick Save Dir", |_window| {
-    if let Some(save_dir) = fork_with_arg("ask-for-dir") {
-      println!("save_dir={:?}", save_dir);
+    if let Some(save_dir) = fork_ask_for_dir() {
+      println!("TODO forward to websocket somedow?");
     }
     Ok::<_, systray::Error>(())
   })?;
@@ -111,10 +111,10 @@ fn hide_console_on_windows_win() {
 
 }
 
-pub fn fork_with_arg(arg: &str) -> Option<PathBuf> {
+pub fn fork_ask_for_dir() -> Option<PathBuf> {
   if let Ok(exe_p) = palaver::env::exe_path() {
     let out = Command::new(&exe_p.to_string_lossy()[..])
-            .arg(arg)
+            .arg("ask-for-dir")
             .output()
             .expect("failed to execute process");
     let out_str = str::from_utf8(&out.stdout).expect("invalid utf-8!");
