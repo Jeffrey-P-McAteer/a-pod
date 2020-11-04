@@ -176,10 +176,10 @@ fn handle_ws_msg(ws: &mut APodWs, ctx: &mut ws::WebsocketContext<APodWs>, text: 
       ctx.text(format!(r#"{{ "event":"lan-ip", "ip": "{}" }}"#, get_lan_ip()));
     }
     else if json["event"] == json!("pick-savedir") {
-      if let Some(save_dir) = gui::fork_ask_for_dir() {
-        ctx.text(format!(r#"{{ "event":"set-save-dir", "save-dir": "{}" }}"#, &save_dir.to_string_lossy() ));
-        (&mut ws.data.lock().unwrap()).save_dir = save_dir;
-      }
+      // if let Some(save_dir) = gui::fork_ask_for_dir() {
+      //   ctx.text(format!(r#"{{ "event":"set-save-dir", "save-dir": "{}" }}"#, &save_dir.to_string_lossy() ));
+      //   (&mut ws.data.lock().unwrap()).save_dir = save_dir;
+      // }
     }
   }
 

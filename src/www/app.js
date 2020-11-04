@@ -42,7 +42,7 @@ function pageReady() {
     }, 2400);
   }
 
-  // Ask cloudfare who we are
+  // Ask cloudfare who we are (usually ipv6 responses)
   var x = new XMLHttpRequest();
   x.onreadystatechange = function() { 
       if (x.readyState == 4 && x.status == 200) {
@@ -57,6 +57,22 @@ function pageReady() {
       }
   }
   x.open("GET", 'https://www.cloudflare.com/cdn-cgi/trace', true); // true means asynchronous
+  x.send(null);
+  // Ask ifconfig.me who we are (usually ipv4 responses)
+  var x = new XMLHttpRequest();
+  x.onreadystatechange = function() { 
+      if (x.readyState == 4 && x.status == 200) {
+        // TODO this is only valid for ipv4 ranges
+        const ipRegex = /[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}/;
+        var p = document.getElementById('public_link');
+        var matches = x.responseText.match(ipRegex);
+        const pub_ip = (matches && matches.length) > 0? matches[0] : "Unknown IP";
+
+        var pub_url = location.protocol+'//'+pub_ip+(location.port ? ':'+location.port: '');
+        p.innerHTML = pub_url;
+      }
+  }
+  x.open("GET", 'https://ifconfig.me/', true); // true means asynchronous
   x.send(null);
 
 }
