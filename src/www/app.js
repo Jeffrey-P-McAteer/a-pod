@@ -96,7 +96,16 @@ function pageReady() {
         serverConnection.onmessage = gotMessageFromServer;
       }
 
-      serverConnection.send(recordedBlob);
+      //serverConnection.send(recordedBlob);
+      // instead POST fragment to /save
+      fetch('https://'+location.hostname+(location.port ? ':'+location.port: '')+'/save', {
+        method: 'POST',
+        cache: 'no-cache',
+        headers: {
+          'Content-Type': 'video/webm'
+        },
+        body: recordedBlob
+      });
 
       // Zero buffer; any chance we could drop frames this way?
       //window.localVideoFrames.splice(0,window.localVideoFrames.length);
@@ -114,7 +123,7 @@ function pageReady() {
       }
     }
 
-  }, 250);
+  }, 500);
 
 }
 

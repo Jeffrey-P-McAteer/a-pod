@@ -21,13 +21,13 @@ use openssl::ssl::*;
 use openssl::pkey::{ PKey };
 use openssl::rsa::{ Rsa };
 
-use nfd;
-
 use std::env;
 use std::sync::{
   Mutex
 };
 use std::path::PathBuf;
+use std::fs::OpenOptions;
+use std::io::prelude::*;
 
 use crate::gui;
 
@@ -133,57 +133,7 @@ impl Default for GlobalData {
 }
 
 fn handle_ws_bin(ws: &mut APodWs, _ctx: &mut ws::WebsocketContext<APodWs>, bin: &[u8]) {
-  use std::fs::OpenOptions;
-  use std::io::prelude::*;
-
-  // only the leader may send binary data to us
-  // if ! ws.is_leader {
-  //   return;
-  // }
-
-  //let new_webm_fragment = bin.to_vec();
-  let mut save_f = {
-    match ws.data.lock() {
-      Ok(data) => data.save_dir.clone(),
-      Err(e) => {
-        println!("e={}", e);
-        return;
-      }
-    }
-  };
-  // For now we only save the local feed; in the future
-  // we need to signal if this is participant 0, 1, 2, etc...
-  save_f.push("0.webm");
-
-  println!("Saving {} bytes to {}", bin.len(), &save_f.to_string_lossy()[..]);
-
-  // let mut file = OpenOptions::new()
-  //       .write(true)
-  //       .create(true)
-  //       .append(true)
-  //       .open(&save_f)
-  //       .unwrap();
-
-  // let mut total_written = 0;
-  // let mut remaining_retries = 10;
-  // while total_written < new_webm_fragment.len() && remaining_retries > 0 {
-  //   remaining_retries -= 1;
-  //   total_written += match file.write(&new_webm_fragment[total_written..]) {
-  //     Ok(num_written) => num_written,
-  //     Err(e) => {
-  //       println!("error writing: {}", e);
-  //       continue;
-  //     }
-  //   }
-  // }
-
-  // if let Err(e) = file.flush() {
-  //   println!("Error flushing: {}", e);
-  // }
-
-  // println!("Done writing!");
-
-
+  // No longer used, instead we POST 500ms of data at a time to /save
 }
 
 fn handle_ws_msg(ws: &mut APodWs, ctx: &mut ws::WebsocketContext<APodWs>, text: String) {
@@ -251,7 +201,7 @@ async fn ws_handler(req: HttpRequest, stream: web::Payload, data: web::Data<Mute
 }
 
 // This fn grabs assets and returns them
-async fn index(req: HttpRequest, _stream: web::Payload) -> HttpResponse {
+fn index(req: HttpRequest, _stream: web::Payload) -> HttpResponse {
   
   // We perform some common routing tactics here
   let mut r_path = req.path();
@@ -261,6 +211,7 @@ async fn index(req: HttpRequest, _stream: web::Payload) -> HttpResponse {
   if r_path.starts_with("/") {
     r_path = &r_path[1..];
   }
+  //println!("r_path={}", &r_path);
 
   // Do some security checks (only localhost should talk to "leader.html")
   if r_path == "leader.html" {
@@ -293,6 +244,57 @@ async fn index(req: HttpRequest, _stream: web::Payload) -> HttpResponse {
   }
 }
 
+// This expects video/webm data + saves it to the 
+fn save(req: HttpRequest, body: web::Bytes, data: web::Data<Mutex<GlobalData>>) -> HttpResponse {
+  
+  let mut save_f = {
+    match data.lock() {
+      Ok(data) => data.save_dir.clone(),
+      Err(e) => {
+        println!("e={}", e);
+        return HttpResponse::Ok()
+          .content_type("text/html")
+          .body(&include_bytes!("www/404.html")[..]);
+      }
+    }
+  };
+  // For now we only save the local feed; in the future
+  // we need to signal if this is participant 0, 1, 2, etc...
+  save_f.push("0.webm");
+
+  println!("[save] Saving {} bytes to {}", body.len(), &save_f.to_string_lossy()[..]);
+
+  let mut file = OpenOptions::new()
+        .write(true)
+        .create(true)
+        .append(true)
+        .open(&save_f)
+        .unwrap();
+
+  let mut total_written = 0;
+  let mut remaining_retries = 10;
+  while total_written < body.len() && remaining_retries > 0 {
+    remaining_retries -= 1;
+    total_written += match file.write(&body[total_written..]) {
+      Ok(num_written) => num_written,
+      Err(e) => {
+        println!("error writing: {}", e);
+        continue;
+      }
+    }
+  }
+
+  if let Err(e) = file.flush() {
+    println!("Error flushing: {}", e);
+  }
+
+  println!("Done writing!");
+
+  HttpResponse::Ok()
+      .content_type("text/plain")
+      .body(r#"Data received!"#)
+}
+
 pub fn main() -> Result<(), Box<dyn std::error::Error>>  {
 
   // Find/Generate an SSL identity
@@ -322,7 +324,9 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>>  {
   HttpServer::new(||
       App::new()
         .app_data( web::Data::new( Mutex::new( GlobalData::default() ) ) )
+        .data(web::PayloadConfig::new(9000000)) // allow 9mb data sent to us
         .route("/ws", web::get().to(ws_handler))
+        .route("/save", web::post().to(save))
         .route("/", web::get().to(index))
         .default_service(
           web::route().to(index)
