@@ -248,6 +248,9 @@ fn index(req: HttpRequest, _stream: web::Payload) -> HttpResponse {
 fn save(req: HttpRequest, body: web::Bytes, data: web::Data<Mutex<GlobalData>>) -> HttpResponse {
   use std::process::Command;
 
+  let save_num = req.path().replace(|c: char| !c.is_numeric(), "");
+  let save_num: usize = save_num.parse().unwrap_or(0);
+
   let mut save_f = {
     match data.lock() {
       Ok(data) => data.save_dir.clone(),
@@ -261,7 +264,7 @@ fn save(req: HttpRequest, body: web::Bytes, data: web::Data<Mutex<GlobalData>>) 
   };
   // For now we only save the local feed; in the future
   // we need to signal if this is participant 0, 1, 2, etc...
-  save_f.push("0.webm");
+  save_f.push(format!("{}.webm", save_num).as_str());
 
   let is_first_write = !save_f.as_path().exists();
 
@@ -278,7 +281,7 @@ fn save(req: HttpRequest, body: web::Bytes, data: web::Data<Mutex<GlobalData>>) 
   };
   // For now we only save the local feed; in the future
   // we need to signal if this is participant 0, 1, 2, etc...
-  tmp_f.push("0_tmp.webm");
+  tmp_f.push(format!("{}_tmp.webm", save_num).as_str());
 
 
   let mut dup_f = {
@@ -294,7 +297,7 @@ fn save(req: HttpRequest, body: web::Bytes, data: web::Data<Mutex<GlobalData>>) 
   };
   // For now we only save the local feed; in the future
   // we need to signal if this is participant 0, 1, 2, etc...
-  dup_f.push("0_dup.webm");
+  dup_f.push(format!("{}_dup.webm", save_num).as_str());
 
 
   println!("[save] Saving {} bytes to {}", body.len(), &save_f.to_string_lossy()[..]);
@@ -379,6 +382,17 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>>  {
         .data(web::PayloadConfig::new(9000000)) // allow 9mb data sent to us
         .route("/ws", web::get().to(ws_handler))
         .route("/save", web::post().to(save))
+        // We just hard-code 9 participant endpoints; this could be done better I'm sure.
+          .route("/save/0", web::post().to(save))
+          .route("/save/1", web::post().to(save))
+          .route("/save/2", web::post().to(save))
+          .route("/save/3", web::post().to(save))
+          .route("/save/4", web::post().to(save))
+          .route("/save/5", web::post().to(save))
+          .route("/save/6", web::post().to(save))
+          .route("/save/7", web::post().to(save))
+          .route("/save/8", web::post().to(save))
+          .route("/save/9", web::post().to(save))
         .route("/", web::get().to(index))
         .default_service(
           web::route().to(index)

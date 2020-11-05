@@ -81,54 +81,65 @@ function pageReady() {
   // Periodically poll localVideoFrames and remoteVideoFrames,
   // pushing both to the server as binary data
   setInterval(function() {
-    let recordedBlob = new Blob(window.localVideoFrames, { type: "video/webm" });
-    
-    // Only tx if we have data
-    if (recordedBlob.size > 0) {
-      //let recordedURL = URL.createObjectURL(recordedBlob);
 
-      console.log(window.localVideoFrames, recordedBlob);
-
-      if (serverConnection.readyState == 2 || serverConnection.readyState == 3) {
-        console.log('re-opening websocket, serverConnection.readyState=', serverConnection.readyState);
-        serverConnection = new WebSocket('wss://'+location.hostname+(location.port ? ':'+location.port: '')+'/ws');
-        serverConnection.binaryType = "blob";
-        serverConnection.onmessage = gotMessageFromServer;
-      }
-
-      //serverConnection.send(recordedBlob);
-      // instead POST fragment to /save
-      fetch('https://'+location.hostname+(location.port ? ':'+location.port: '')+'/save', {
-        method: 'POST',
-        cache: 'no-cache',
-        headers: {
-          'Content-Type': 'video/webm'
-        },
-        body: recordedBlob
-      });
-
-      // Zero buffer; any chance we could drop frames this way?
-      //window.localVideoFrames.splice(0,window.localVideoFrames.length);
+    postFramesToServer(0, window.localVideoFrames, window.localVideoRecorder, function() {
       window.localVideoFrames = [];
-      // I think .stop() then .start() will give us a new webm header,
-      // which we need to join 2 fragments together using mkvmerge
-      window.localVideoRecorder.stop();
-      window.localVideoRecorder.start();
-
-    }
-
-    // Ask for new data to be written to the buffer
-    if (window.localVideoRecorder) {
-      if (window.localVideoRecorder.state != "recording") {
-        window.localVideoRecorder.start();
-      }
-      else {
-        window.localVideoRecorder.requestData();
-      }
-    }
+    });
+    postFramesToServer(1, window.remoteVideoFrames, window.remoteVideoRecorder, function() {
+      window.remoteVideoFrames = [];
+    });
 
   }, 5000);
 
+}
+
+function postFramesToServer(num, frames, recorder, clear_data_fn) {
+  let recordedBlob = new Blob(frames, { type: "video/webm" });
+  
+  // Only tx if we have data
+  if (recordedBlob.size > 0) {
+    //let recordedURL = URL.createObjectURL(recordedBlob);
+
+    console.log(frames, recordedBlob);
+
+    if (serverConnection.readyState == 2 || serverConnection.readyState == 3) {
+      console.log('re-opening websocket, serverConnection.readyState=', serverConnection.readyState);
+      serverConnection = new WebSocket('wss://'+location.hostname+(location.port ? ':'+location.port: '')+'/ws');
+      serverConnection.binaryType = "blob";
+      serverConnection.onmessage = gotMessageFromServer;
+    }
+
+    //serverConnection.send(recordedBlob);
+    // instead POST fragment to /save
+    fetch('https://'+location.hostname+(location.port ? ':'+location.port: '')+'/save/'+num, {
+      method: 'POST',
+      cache: 'no-cache',
+      headers: {
+        'Content-Type': 'video/webm'
+      },
+      body: recordedBlob
+    });
+
+    // Zero buffer; any chance we could drop frames this way?
+    //window.localVideoFrames.splice(0,window.localVideoFrames.length);
+    clear_data_fn();
+
+    // I think .stop() then .start() will give us a new webm header,
+    // which we need to join 2 fragments together using mkvmerge
+    recorder.stop();
+    recorder.start();
+
+  }
+
+  // Ask for new data to be written to the buffer
+  if (recorder) {
+    if (recorder.state != "recording") {
+      recorder.start();
+    }
+    else {
+      recorder.requestData();
+    }
+  }
 }
 
 function getUserMediaSuccess(stream) {
@@ -217,6 +228,21 @@ function createdDescription(description) {
 function gotRemoteStream(event) {
   console.log('got remote stream');
   remoteVideo.srcObject = event.streams[0];
+  remoteVideo.captureStream = remoteVideo.captureStream || remoteVideo.mozCaptureStream;
+
+  window.remoteVideoRecorder = new MediaRecorder(remoteVideo.captureStream(), {
+    "mimeType": "video/webm"
+  });
+  window.remoteVideoRecorder.ondataavailable = function(event) {
+      console.log(event);
+      window.remoteVideoFrames.push(event.data);
+  };
+  // Start 1/4 second after getting video feed, otherwise we get
+  // "DOMException: MediaRecorder.start: The MediaStream is inactive"
+  setTimeout(function() {
+    window.remoteVideoRecorder.start();
+  }, 250);
+
 }
 
 function errorHandler(error) {
