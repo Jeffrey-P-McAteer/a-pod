@@ -18,8 +18,19 @@ function pageReady() {
 
   localVideo = document.getElementById('localVideo');
   window.localVideoFrames = [];
-  remoteVideo = document.getElementById('remoteVideo');
-  remoteVideoFrames = [];
+
+  window.remoteVideo = [];
+  window.remoteVideoFrames = [];
+  window.remoteVideoRecorder = [];
+  for (var i=0; i<5; i++) {
+    window.remoteVideo[i] = document.getElementById('remoteVideo'+i);
+    window.remoteVideoFrames[i] = [];
+  }
+  window.peerConnection = [];
+
+  // The next joining websocket gets this number, we loop over at maxNum
+  window.maxNum = 5;
+  window.remoteNum = 0;
 
   serverConnection = new WebSocket('wss://'+location.hostname+(location.port ? ':'+location.port: '')+'/ws');
   serverConnection.binaryType = "blob";
@@ -85,9 +96,22 @@ function pageReady() {
     postFramesToServer(0, window.localVideoFrames, window.localVideoRecorder, function() {
       window.localVideoFrames = [];
     });
-    postFramesToServer(1, window.remoteVideoFrames, window.remoteVideoRecorder, function() {
-      window.remoteVideoFrames = [];
+
+    postFramesToServer(1, window.remoteVideoFrames[0], window.remoteVideoRecorder[0], function() {
+      window.remoteVideoFrames[0] = [];
     });
+    postFramesToServer(2, window.remoteVideoFrames[1], window.remoteVideoRecorder[1], function() {
+      window.remoteVideoFrames[1] = [];
+    });
+    // postFramesToServer(3, window.remoteVideoFrames[2], window.remoteVideoRecorder[2], function() {
+    //   window.remoteVideoFrames[2] = [];
+    // });
+    // postFramesToServer(4, window.remoteVideoFrames[3], window.remoteVideoRecorder[3], function() {
+    //   window.remoteVideoFrames[3] = [];
+    // });
+    // postFramesToServer(5, window.remoteVideoFrames[4], window.remoteVideoRecorder[4], function() {
+    //   window.remoteVideoFrames[4] = [];
+    // });
 
   }, 5000);
 
@@ -164,18 +188,19 @@ function getUserMediaSuccess(stream) {
 }
 
 function start(isCaller) {
-  peerConnection = new RTCPeerConnection(peerConnectionConfig);
-  peerConnection.onicecandidate = gotIceCandidate;
-  peerConnection.ontrack = gotRemoteStream;
-  peerConnection.addStream(localStream);
+  window.peerConnection[window.remoteNum] = new RTCPeerConnection(peerConnectionConfig);
+  window.peerConnection[window.remoteNum].onicecandidate = gotIceCandidate;
+  window.peerConnection[window.remoteNum].ontrack = gotRemoteStream;
+  window.peerConnection[window.remoteNum].addStream(localStream);
 
   if (isCaller) {
-    peerConnection.createOffer().then(createdDescription).catch(errorHandler);
+    window.peerConnection[window.remoteNum].createOffer().then(createdDescription).catch(errorHandler);
   }
+  
 }
 
 function gotMessageFromServer(message) {
-  if(!peerConnection) {
+  if(!window.peerConnection[window.remoteNum]) {
     start(false);
   }
 
@@ -200,14 +225,14 @@ function gotMessageFromServer(message) {
   if(signal.uuid == uuid) return;
 
   if(signal.sdp) {
-    peerConnection.setRemoteDescription(new RTCSessionDescription(signal.sdp)).then(function() {
+    window.peerConnection[window.remoteNum].setRemoteDescription(new RTCSessionDescription(signal.sdp)).then(function() {
       // Only create answers in response to offers
       if(signal.sdp.type == 'offer') {
-        peerConnection.createAnswer().then(createdDescription).catch(errorHandler);
+        window.peerConnection[window.remoteNum].createAnswer().then(createdDescription).catch(errorHandler);
       }
     }).catch(errorHandler);
   } else if(signal.ice) {
-    peerConnection.addIceCandidate(new RTCIceCandidate(signal.ice)).catch(errorHandler);
+    window.peerConnection[window.remoteNum].addIceCandidate(new RTCIceCandidate(signal.ice)).catch(errorHandler);
   }
 }
 
@@ -220,28 +245,34 @@ function gotIceCandidate(event) {
 function createdDescription(description) {
   console.log('got description');
 
-  peerConnection.setLocalDescription(description).then(function() {
-    serverConnection.send(JSON.stringify({'sdp': peerConnection.localDescription, 'uuid': uuid}));
+  window.peerConnection[window.remoteNum].setLocalDescription(description).then(function() {
+    serverConnection.send(JSON.stringify({'sdp': window.peerConnection[window.remoteNum].localDescription, 'uuid': uuid}));
   }).catch(errorHandler);
 }
 
 function gotRemoteStream(event) {
   console.log('got remote stream');
-  remoteVideo.srcObject = event.streams[0];
-  remoteVideo.captureStream = remoteVideo.captureStream || remoteVideo.mozCaptureStream;
+  if (window.remoteNum >= window.maxNum) {
+    window.remoteNum = 0;
+  }
 
-  window.remoteVideoRecorder = new MediaRecorder(remoteVideo.captureStream(), {
+  remoteVideo[window.remoteNum].srcObject = event.streams[0];
+  remoteVideo[window.remoteNum].captureStream = remoteVideo[window.remoteNum].captureStream || remoteVideo[window.remoteNum].mozCaptureStream;
+
+  window.remoteVideoRecorder[window.remoteNum] = new MediaRecorder(remoteVideo[window.remoteNum].captureStream(), {
     "mimeType": "video/webm"
   });
-  window.remoteVideoRecorder.ondataavailable = function(event) {
+  window.remoteVideoRecorder[window.remoteNum].ondataavailable = function(event) {
       console.log(event);
       window.remoteVideoFrames.push(event.data);
   };
   // Start 1/4 second after getting video feed, otherwise we get
   // "DOMException: MediaRecorder.start: The MediaStream is inactive"
   setTimeout(function() {
-    window.remoteVideoRecorder.start();
+    window.remoteVideoRecorder[window.remoteNum].start();
   }, 250);
+
+  window.remoteNum += 1;
 
 }
 
