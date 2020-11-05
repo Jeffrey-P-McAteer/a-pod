@@ -246,7 +246,8 @@ fn index(req: HttpRequest, _stream: web::Payload) -> HttpResponse {
 
 // This expects video/webm data + saves it to the 
 fn save(req: HttpRequest, body: web::Bytes, data: web::Data<Mutex<GlobalData>>) -> HttpResponse {
-  
+  use std::process::Command;
+
   let mut save_f = {
     match data.lock() {
       Ok(data) => data.save_dir.clone(),
@@ -262,13 +263,48 @@ fn save(req: HttpRequest, body: web::Bytes, data: web::Data<Mutex<GlobalData>>) 
   // we need to signal if this is participant 0, 1, 2, etc...
   save_f.push("0.webm");
 
+  let is_first_write = !save_f.as_path().exists();
+
+  let mut tmp_f = {
+    match data.lock() {
+      Ok(data) => data.save_dir.clone(),
+      Err(e) => {
+        println!("e={}", e);
+        return HttpResponse::Ok()
+          .content_type("text/html")
+          .body(&include_bytes!("www/404.html")[..]);
+      }
+    }
+  };
+  // For now we only save the local feed; in the future
+  // we need to signal if this is participant 0, 1, 2, etc...
+  tmp_f.push("0_tmp.webm");
+
+
+  let mut dup_f = {
+    match data.lock() {
+      Ok(data) => data.save_dir.clone(),
+      Err(e) => {
+        println!("e={}", e);
+        return HttpResponse::Ok()
+          .content_type("text/html")
+          .body(&include_bytes!("www/404.html")[..]);
+      }
+    }
+  };
+  // For now we only save the local feed; in the future
+  // we need to signal if this is participant 0, 1, 2, etc...
+  dup_f.push("0_dup.webm");
+
+
   println!("[save] Saving {} bytes to {}", body.len(), &save_f.to_string_lossy()[..]);
 
+  // Write to temp file and use ffmpeg to merge chunks
   let mut file = OpenOptions::new()
         .write(true)
         .create(true)
-        .append(true)
-        .open(&save_f)
+        .append(false)
+        .open(if is_first_write { &save_f } else { &tmp_f })
         .unwrap();
 
   let mut total_written = 0;
@@ -288,7 +324,23 @@ fn save(req: HttpRequest, body: web::Bytes, data: web::Data<Mutex<GlobalData>>) 
     println!("Error flushing: {}", e);
   }
 
-  println!("Done writing!");
+  if ! is_first_write {
+    println!("Done writing, merging {} with {}...", &save_f.to_string_lossy()[..], &tmp_f.to_string_lossy()[..]);
+
+    std::fs::copy(&save_f, &dup_f).expect("Could not copy existing video file");
+
+    // yay -S mkvtoolnix-cli
+    Command::new("mkvmerge")
+            .args(&[
+              "-o", &save_f.to_string_lossy()[..],
+              "-w", // "--webm"
+              &dup_f.to_string_lossy()[..], "+",
+              &tmp_f.to_string_lossy()[..]
+            ])
+            .status()
+            .expect("Could not run mkvmerge");
+
+  }
 
   HttpResponse::Ok()
       .content_type("text/plain")
