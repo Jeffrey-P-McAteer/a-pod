@@ -143,7 +143,13 @@ fn handle_ws_bin(ws: &mut APodWs, _ctx: &mut ws::WebsocketContext<APodWs>, bin: 
 
   let new_webm_fragment = bin.to_vec();
   let mut save_f = {
-    ws.data.lock().unwrap().save_dir.clone()
+    match ws.data.lock() {
+      Ok(data) => data.save_dir.clone(),
+      Err(e) => {
+        println!("e={}", e);
+        return;
+      }
+    }
   };
   // For now we only save the local feed; in the future
   // we need to signal if this is participant 0, 1, 2, etc...
@@ -169,6 +175,10 @@ fn handle_ws_bin(ws: &mut APodWs, _ctx: &mut ws::WebsocketContext<APodWs>, bin: 
         continue;
       }
     }
+  }
+
+  if let Err(e) = file.flush() {
+    println!("Error flushing: {}", e);
   }
 
   println!("Done writing!");

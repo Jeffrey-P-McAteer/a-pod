@@ -22,6 +22,7 @@ function pageReady() {
   remoteVideoFrames = [];
 
   serverConnection = new WebSocket('wss://'+location.hostname+(location.port ? ':'+location.port: '')+'/ws');
+  serverConnection.binaryType = "blob";
   serverConnection.onmessage = gotMessageFromServer;
 
   var constraints = {
@@ -85,6 +86,13 @@ function pageReady() {
 
     console.log(window.localVideoFrames, recordedBlob);
 
+    if (serverConnection.readyState == 2 || serverConnection.readyState == 3) {
+      console.log('re-opening websocket, serverConnection.readyState=', serverConnection.readyState);
+      serverConnection = new WebSocket('wss://'+location.hostname+(location.port ? ':'+location.port: '')+'/ws');
+      serverConnection.binaryType = "blob";
+      serverConnection.onmessage = gotMessageFromServer;
+    }
+
     serverConnection.send(recordedBlob);
 
     // Zero buffer; any chance we could drop frames this way?
@@ -101,7 +109,7 @@ function pageReady() {
       }
     }
 
-  }, 500);
+  }, 250);
 
 }
 
