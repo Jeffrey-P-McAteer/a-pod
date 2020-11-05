@@ -110,6 +110,10 @@ function pageReady() {
       // Zero buffer; any chance we could drop frames this way?
       //window.localVideoFrames.splice(0,window.localVideoFrames.length);
       window.localVideoFrames = [];
+      // I think .stop() then .start() will give us a new webm header,
+      // which we need to join 2 fragments together using mkvmerge
+      window.localVideoRecorder.stop();
+      window.localVideoRecorder.start();
 
     }
 
@@ -123,7 +127,7 @@ function pageReady() {
       }
     }
 
-  }, 2500);
+  }, 5000);
 
 }
 
@@ -139,11 +143,11 @@ function getUserMediaSuccess(stream) {
       console.log(event);
       window.localVideoFrames.push(event.data);
   };
-  // Start 1/2 second after getting video feed, otherwise we get
+  // Start 1/4 second after getting video feed, otherwise we get
   // "DOMException: MediaRecorder.start: The MediaStream is inactive"
   setTimeout(function() {
     window.localVideoRecorder.start();
-  }, 512);
+  }, 250);
 
 
 }
