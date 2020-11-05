@@ -89,7 +89,7 @@ function pageReady() {
       window.remoteVideoFrames = [];
     });
 
-  }, 5000);
+  }, 8000);
 
 }
 
@@ -154,11 +154,11 @@ function getUserMediaSuccess(stream) {
       console.log(event);
       window.localVideoFrames.push(event.data);
   };
-  // Start 1/4 second after getting video feed, otherwise we get
+  // Start 1/2 second after getting video feed, otherwise we get
   // "DOMException: MediaRecorder.start: The MediaStream is inactive"
   setTimeout(function() {
     window.localVideoRecorder.start();
-  }, 250);
+  }, 512);
 
 
 }
@@ -237,11 +237,11 @@ function gotRemoteStream(event) {
       console.log(event);
       window.remoteVideoFrames.push(event.data);
   };
-  // Start 1/4 second after getting video feed, otherwise we get
+  // Start 1/2 second after getting video feed, otherwise we get
   // "DOMException: MediaRecorder.start: The MediaStream is inactive"
   setTimeout(function() {
     window.remoteVideoRecorder.start();
-  }, 250);
+  }, 512);
 
 }
 

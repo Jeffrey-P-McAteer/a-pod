@@ -379,7 +379,7 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>>  {
   HttpServer::new(||
       App::new()
         .app_data( web::Data::new( Mutex::new( GlobalData::default() ) ) )
-        .data(web::PayloadConfig::new(9000000)) // allow 9mb data sent to us
+        .data(web::PayloadConfig::new(15000000)) // allow 15mb data sent to us
         .route("/ws", web::get().to(ws_handler))
         .route("/save", web::post().to(save))
         // We just hard-code 9 participant endpoints; this could be done better I'm sure.
