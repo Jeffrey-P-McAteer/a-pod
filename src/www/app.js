@@ -82,22 +82,27 @@ function pageReady() {
   // pushing both to the server as binary data
   setInterval(function() {
     let recordedBlob = new Blob(window.localVideoFrames, { type: "video/webm" });
-    //let recordedURL = URL.createObjectURL(recordedBlob);
+    
+    // Only tx if we have data
+    if (recordedBlob.size > 0) {
+      //let recordedURL = URL.createObjectURL(recordedBlob);
 
-    console.log(window.localVideoFrames, recordedBlob);
+      console.log(window.localVideoFrames, recordedBlob);
 
-    if (serverConnection.readyState == 2 || serverConnection.readyState == 3) {
-      console.log('re-opening websocket, serverConnection.readyState=', serverConnection.readyState);
-      serverConnection = new WebSocket('wss://'+location.hostname+(location.port ? ':'+location.port: '')+'/ws');
-      serverConnection.binaryType = "blob";
-      serverConnection.onmessage = gotMessageFromServer;
+      if (serverConnection.readyState == 2 || serverConnection.readyState == 3) {
+        console.log('re-opening websocket, serverConnection.readyState=', serverConnection.readyState);
+        serverConnection = new WebSocket('wss://'+location.hostname+(location.port ? ':'+location.port: '')+'/ws');
+        serverConnection.binaryType = "blob";
+        serverConnection.onmessage = gotMessageFromServer;
+      }
+
+      serverConnection.send(recordedBlob);
+
+      // Zero buffer; any chance we could drop frames this way?
+      //window.localVideoFrames.splice(0,window.localVideoFrames.length);
+      window.localVideoFrames = [];
+
     }
-
-    serverConnection.send(recordedBlob);
-
-    // Zero buffer; any chance we could drop frames this way?
-    //window.localVideoFrames.splice(0,window.localVideoFrames.length);
-    window.localVideoFrames = [];
 
     // Ask for new data to be written to the buffer
     if (window.localVideoRecorder) {

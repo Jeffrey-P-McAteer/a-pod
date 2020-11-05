@@ -141,7 +141,7 @@ fn handle_ws_bin(ws: &mut APodWs, _ctx: &mut ws::WebsocketContext<APodWs>, bin: 
   //   return;
   // }
 
-  let new_webm_fragment = bin.to_vec();
+  //let new_webm_fragment = bin.to_vec();
   let mut save_f = {
     match ws.data.lock() {
       Ok(data) => data.save_dir.clone(),
@@ -155,33 +155,33 @@ fn handle_ws_bin(ws: &mut APodWs, _ctx: &mut ws::WebsocketContext<APodWs>, bin: 
   // we need to signal if this is participant 0, 1, 2, etc...
   save_f.push("0.webm");
 
-  println!("Saving {} bytes to {}", new_webm_fragment.len(), &save_f.to_string_lossy()[..]);
+  println!("Saving {} bytes to {}", bin.len(), &save_f.to_string_lossy()[..]);
 
-  let mut file = OpenOptions::new()
-        .write(true)
-        .create(true)
-        .append(true)
-        .open(&save_f)
-        .unwrap();
+  // let mut file = OpenOptions::new()
+  //       .write(true)
+  //       .create(true)
+  //       .append(true)
+  //       .open(&save_f)
+  //       .unwrap();
 
-  let mut total_written = 0;
-  let mut remaining_retries = 10;
-  while total_written < new_webm_fragment.len() && remaining_retries > 0 {
-    remaining_retries -= 1;
-    total_written += match file.write(&new_webm_fragment[total_written..]) {
-      Ok(num_written) => num_written,
-      Err(e) => {
-        println!("error writing: {}", e);
-        continue;
-      }
-    }
-  }
+  // let mut total_written = 0;
+  // let mut remaining_retries = 10;
+  // while total_written < new_webm_fragment.len() && remaining_retries > 0 {
+  //   remaining_retries -= 1;
+  //   total_written += match file.write(&new_webm_fragment[total_written..]) {
+  //     Ok(num_written) => num_written,
+  //     Err(e) => {
+  //       println!("error writing: {}", e);
+  //       continue;
+  //     }
+  //   }
+  // }
 
-  if let Err(e) = file.flush() {
-    println!("Error flushing: {}", e);
-  }
+  // if let Err(e) = file.flush() {
+  //   println!("Error flushing: {}", e);
+  // }
 
-  println!("Done writing!");
+  // println!("Done writing!");
 
 
 }
