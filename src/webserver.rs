@@ -133,24 +133,46 @@ impl Default for GlobalData {
 }
 
 fn handle_ws_bin(ws: &mut APodWs, _ctx: &mut ws::WebsocketContext<APodWs>, bin: &[u8]) {
-  // Anytime someone sends the server data we forward it to everyone else,
-  // including the sender.
-  let clients = &mut ws.data.lock().unwrap().clients;
-  let mut idx_to_rm: Option<usize> = None;
-  for i in 0..clients.len() {
-    if i == ws.num {
-      continue;
+  use std::fs::OpenOptions;
+  use std::io::prelude::*;
+
+  // only the leader may send binary data to us
+  // if ! ws.is_leader {
+  //   return;
+  // }
+
+  let new_webm_fragment = bin.to_vec();
+  let mut save_f = {
+    ws.data.lock().unwrap().save_dir.clone()
+  };
+  // For now we only save the local feed; in the future
+  // we need to signal if this is participant 0, 1, 2, etc...
+  save_f.push("0.webm");
+
+  println!("Saving {} bytes to {}", new_webm_fragment.len(), &save_f.to_string_lossy()[..]);
+
+  let mut file = OpenOptions::new()
+        .write(true)
+        .create(true)
+        .append(true)
+        .open(&save_f)
+        .unwrap();
+
+  let mut total_written = 0;
+  let mut remaining_retries = 10;
+  while total_written < new_webm_fragment.len() && remaining_retries > 0 {
+    remaining_retries -= 1;
+    total_written += match file.write(&new_webm_fragment[total_written..]) {
+      Ok(num_written) => num_written,
+      Err(e) => {
+        println!("error writing: {}", e);
+        continue;
+      }
     }
-    if let Err(e) = clients[i].try_send(WsMessage::B(bin.to_vec())) {
-      println!("Error sending bin to client: {}", e);
-      idx_to_rm = Some(i);
-    }
-  }
-  if let Some(idx_to_rm) = idx_to_rm {
-    clients.remove(idx_to_rm);
   }
 
-  let _todo_save_me = bin.to_vec();
+  println!("Done writing!");
+
 
 }
 
@@ -201,6 +223,8 @@ fn handle_ws_msg(ws: &mut APodWs, ctx: &mut ws::WebsocketContext<APodWs>, text: 
       }
     }
   }
+
+  println!("handle_ws_msg DONE");
 
 }
 

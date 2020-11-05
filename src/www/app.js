@@ -17,7 +17,9 @@ function pageReady() {
   window.is_leader = window.location.toString().indexOf('leader.html') >= 0;
 
   localVideo = document.getElementById('localVideo');
+  window.localVideoFrames = [];
   remoteVideo = document.getElementById('remoteVideo');
+  remoteVideoFrames = [];
 
   serverConnection = new WebSocket('wss://'+location.hostname+(location.port ? ':'+location.port: '')+'/ws');
   serverConnection.onmessage = gotMessageFromServer;
@@ -75,11 +77,53 @@ function pageReady() {
   x.open("GET", 'https://ifconfig.me/', true); // true means asynchronous
   x.send(null);
 
+  // Periodically poll localVideoFrames and remoteVideoFrames,
+  // pushing both to the server as binary data
+  setInterval(function() {
+    let recordedBlob = new Blob(window.localVideoFrames, { type: "video/webm" });
+    //let recordedURL = URL.createObjectURL(recordedBlob);
+
+    console.log(window.localVideoFrames, recordedBlob);
+
+    serverConnection.send(recordedBlob);
+
+    // Zero buffer; any chance we could drop frames this way?
+    //window.localVideoFrames.splice(0,window.localVideoFrames.length);
+    window.localVideoFrames = [];
+
+    // Ask for new data to be written to the buffer
+    if (window.localVideoRecorder) {
+      if (window.localVideoRecorder.state != "recording") {
+        window.localVideoRecorder.start();
+      }
+      else {
+        window.localVideoRecorder.requestData();
+      }
+    }
+
+  }, 500);
+
 }
 
 function getUserMediaSuccess(stream) {
   localStream = stream;
   localVideo.srcObject = stream;
+  localVideo.captureStream = localVideo.captureStream || localVideo.mozCaptureStream;
+  // Save localVideo frames to the localVideoFrames buffer
+  window.localVideoRecorder = new MediaRecorder(localVideo.captureStream(), {
+    "mimeType": "video/webm"
+  });
+  window.localVideoRecorder.ondataavailable = function(event) {
+      console.log(event);
+      window.localVideoFrames.push(event.data);
+  };
+  // Start 1/2 second after getting video feed, otherwise we get
+  // "DOMException: MediaRecorder.start: The MediaStream is inactive"
+  setTimeout(function() {
+    window.localVideoRecorder.start();
+  }, 512);
+
+
 }
 
 function start(isCaller) {
