@@ -8,6 +8,8 @@ from remote parties onto your own system.
 
 # Building
 
+Use [rustup](https://rustup.rs/) to install a cargo toolchain (or your OS's package manager).
+
 ```bash
 cargo build --release
 # Puts executable in target/release/a-pod.exe
