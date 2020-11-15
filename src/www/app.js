@@ -13,6 +13,9 @@ var peerConnectionConfig = {
 };
 
 function pageReady() {
+  // This variable is read below to schedule a task that pushes video frames to the server
+  window.push_video_delay_ms = 8000;
+
   uuid = createUUID();
   window.is_leader = window.location.toString().indexOf('leader.html') >= 0;
 
@@ -89,7 +92,7 @@ function pageReady() {
       window.remoteVideoFrames = [];
     });
 
-  }, 8000);
+  }, window.push_video_delay_ms);
 
 }
 
