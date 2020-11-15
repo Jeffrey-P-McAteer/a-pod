@@ -16,6 +16,9 @@ cargo build --release
 
 # If on a *nix system and you need a windows .exe
 cargo build --release --target=x86_64-pc-windows-gnu
+
+# To build macos from *nix
+cargo build --release --target=x86_64-apple-darwin
 ```
 
 # Usage
