@@ -6,7 +6,7 @@ mod gui;
 
 // These constants may be read from anywhere in
 // the program and change default behaviours
-pub const HTTP_PORT: u64 = 8443;
+pub const HTTP_PORT: u64 = 9443;
 pub const APP_NAME: &'static str = "A-Pod";
 
 fn main() {

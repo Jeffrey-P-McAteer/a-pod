@@ -23,10 +23,16 @@ cargo build --release --target=x86_64-apple-darwin
 
 # Usage
 
-1. You will need a "leader" machine which has port 8080 open to the public.
+1. You will need a "leader" machine which has port 9443 open to the public.
 2. Run `a-pod.exe`
-3. Send "followers" a link to your public IP address port 8080
+3. Send "followers" a link to your public IP address port 9443
 4. Connected followers will display in the leader's window
+
+# Common bugs/known issues
+
+ - MacOS webcams cannot be viewed using `navigator.mediaDevices.getUserMedia`?
+ - MacOS and Windows firewalls will default to preventing apps from binding to public ports.
+   A test is being added to tell you if your OS is preventing your followers from using `a-pod.exe`.
 
 
 # Design Notes
