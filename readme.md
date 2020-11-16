@@ -21,6 +21,16 @@ cargo build --release --target=x86_64-pc-windows-gnu
 cargo build --release --target=x86_64-apple-darwin
 ```
 
+The GUI code has been put behind a feature flag which is disabled by default in
+the hopes that it makes compiling for windows easier (-\_-).
+
+To enable GUI code, pass `--features "gui"` to any of the above commands, eg:
+
+```bash
+cargo build --release --features "gui"
+```
+
+
 # Usage
 
 1. You will need a "leader" machine which has port 9443 open to the public.

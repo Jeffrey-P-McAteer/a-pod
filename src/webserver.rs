@@ -29,6 +29,7 @@ use std::path::PathBuf;
 use std::fs::OpenOptions;
 use std::io::prelude::*;
 
+#[cfg(feature = "gui")]
 use crate::gui;
 
 #[derive(RustEmbed)]
@@ -127,16 +128,23 @@ impl Default for GlobalData {
       save_dir = PathBuf::from(arg);
     } else {
       // Open GUI to get directory, do not let app continue until user has given us data.
-      loop {
-        match gui::fork_ask_for_dir() {
-          Some(directory) => {
-            save_dir = directory;
-            break;
-          }
-          None => {
-            println!("You must select a save directory.");
+      #[cfg(feature = "gui")]
+      {
+        loop {
+          match gui::fork_ask_for_dir() {
+            Some(directory) => {
+              save_dir = directory;
+              break;
+            }
+            None => {
+              println!("You must select a save directory.");
+            }
           }
         }
+      }
+      #[cfg(not(feature = "gui"))]
+      {
+        panic!("You must specify a save directory as arg1, or build with '--features gui' to have a popup dialogue ask for the save directory.");
       }
     };
     println!("initial save_dir={:?}", &save_dir.as_path().to_string_lossy());
@@ -192,9 +200,12 @@ fn handle_ws_msg(ws: &mut APodWs, ctx: &mut ws::WebsocketContext<APodWs>, text: 
       }
     }
     else if json["event"] == json!("pick-savedir") {
-      if let Some(save_dir) = gui::fork_ask_for_dir() {
-        ctx.text(format!(r#"{{ "event":"set-save-dir", "save-dir": "{}" }}"#, &save_dir.to_string_lossy() ));
-        (&mut ws.data.lock().unwrap()).save_dir = save_dir;
+      #[cfg(feature = "gui")]
+      {
+        if let Some(save_dir) = gui::fork_ask_for_dir() {
+          ctx.text(format!(r#"{{ "event":"set-save-dir", "save-dir": "{}" }}"#, &save_dir.to_string_lossy() ));
+          (&mut ws.data.lock().unwrap()).save_dir = save_dir;
+        }
       }
     }
   }
