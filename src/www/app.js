@@ -14,7 +14,7 @@ var peerConnectionConfig = {
 
 function pageReady() {
   // This variable is read below to schedule a task that pushes video frames to the server
-  window.push_video_delay_ms = 8000;
+  window.push_video_delay_ms = 5000;
 
   uuid = createUUID();
   window.is_leader = window.location.toString().indexOf('leader.html') >= 0;
@@ -40,59 +40,87 @@ function pageReady() {
   }
 
   if (window.is_leader) {
+    // Grab references to leader GUI items
+    window.recording_btn = document.getElementById('recording');
+    window.is_recording = false;
+
     // We assume the websocket connects after 2 seconds
     setTimeout(function() {
       serverConnection.send(JSON.stringify({
         'event': 'leader-joined'
       }));
     }, 2400);
-  }
 
-  // Ask cloudfare who we are (usually ipv6 responses)
-  var x = new XMLHttpRequest();
-  x.onreadystatechange = function() { 
-      if (x.readyState == 4 && x.status == 200) {
-        // TODO this is only valid for ipv4 ranges
-        const ipRegex = /[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}/;
-        var p = document.getElementById('public_link');
-        var matches = x.responseText.match(ipRegex);
-        const pub_ip = (matches && matches.length) > 0? matches[0] : "Unknown IP";
+    // Ask cloudfare who we are (usually ipv6 responses)
+    var x = new XMLHttpRequest();
+    x.onreadystatechange = function() { 
+        if (x.readyState == 4 && x.status == 200) {
+          // TODO this is only valid for ipv4 ranges
+          const ipRegex = /[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}/;
+          var p = document.getElementById('public_link');
+          var matches = x.responseText.match(ipRegex);
+          const pub_ip = (matches && matches.length) > 0? matches[0] : "Unknown IP";
 
-        var pub_url = location.protocol+'//'+pub_ip+(location.port ? ':'+location.port: '');
-        p.innerHTML = pub_url;
+          var pub_url = location.protocol+'//'+pub_ip+(location.port ? ':'+location.port: '');
+          p.innerHTML = pub_url;
+        }
+    }
+    x.open("GET", 'https://www.cloudflare.com/cdn-cgi/trace', true); // true means asynchronous
+    x.send(null);
+    // Ask ifconfig.me who we are (usually ipv4 responses)
+    var x = new XMLHttpRequest();
+    x.onreadystatechange = function() { 
+        if (x.readyState == 4 && x.status == 200) {
+          // TODO this is only valid for ipv4 ranges
+          const ipRegex = /[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}/;
+          var p = document.getElementById('public_link');
+          var matches = x.responseText.match(ipRegex);
+          const pub_ip = (matches && matches.length) > 0? matches[0] : "Unknown IP";
+
+          var pub_url = location.protocol+'//'+pub_ip+(location.port ? ':'+location.port: '');
+          p.innerHTML = pub_url;
+        }
+    }
+    x.open("GET", 'https://ifconfig.me/', true); // true means asynchronous
+    x.send(null);
+
+    // Periodically poll localVideoFrames and remoteVideoFrames,
+    // pushing both to the server as binary data
+    setInterval(function() {
+      if (window.is_recording) {
+        postAllFramesToServer();
       }
-  }
-  x.open("GET", 'https://www.cloudflare.com/cdn-cgi/trace', true); // true means asynchronous
-  x.send(null);
-  // Ask ifconfig.me who we are (usually ipv4 responses)
-  var x = new XMLHttpRequest();
-  x.onreadystatechange = function() { 
-      if (x.readyState == 4 && x.status == 200) {
-        // TODO this is only valid for ipv4 ranges
-        const ipRegex = /[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}/;
-        var p = document.getElementById('public_link');
-        var matches = x.responseText.match(ipRegex);
-        const pub_ip = (matches && matches.length) > 0? matches[0] : "Unknown IP";
-
-        var pub_url = location.protocol+'//'+pub_ip+(location.port ? ':'+location.port: '');
-        p.innerHTML = pub_url;
+      else {
+        // delete the data as it accumulates; not recording but
+        // we still save frames.
+        window.localVideoFrames = [];
+        window.remoteVideoFrames = [];
       }
+    }, window.push_video_delay_ms);
+
   }
-  x.open("GET", 'https://ifconfig.me/', true); // true means asynchronous
-  x.send(null);
 
-  // Periodically poll localVideoFrames and remoteVideoFrames,
-  // pushing both to the server as binary data
-  setInterval(function() {
 
-    postFramesToServer(0, window.localVideoFrames, window.localVideoRecorder, function() {
-      window.localVideoFrames = [];
-    });
-    postFramesToServer(1, window.remoteVideoFrames, window.remoteVideoRecorder, function() {
-      window.remoteVideoFrames = [];
-    });
+}
 
-  }, window.push_video_delay_ms);
+function toggleRecording() {
+  window.is_recording = !window.is_recording;
+  if (window.is_recording) {
+    window.recording_btn.value = 'Stop Recording';
+  }
+  else {
+    postAllFramesToServer();
+    window.recording_btn.value = 'Begin Recording';
+  }
+}
+
+function postAllFramesToServer() {
+  postFramesToServer(0, window.localVideoFrames, window.localVideoRecorder, function() {
+    window.localVideoFrames = [];
+  });
+  postFramesToServer(1, window.remoteVideoFrames, window.remoteVideoRecorder, function() {
+    window.remoteVideoFrames = [];
+  });
 
 }
 

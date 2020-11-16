@@ -121,10 +121,25 @@ struct GlobalData {
 impl Default for GlobalData {
   fn default() -> Self {
     println!("GlobalData::default run!");
-    let mut save_dir = env::current_dir().expect("Could not get current_dir");
+    //let mut save_dir = env::current_dir().expect("Could not get current_dir");
+    let mut save_dir: PathBuf;
     if let Some(arg) = env::args().skip(1).next() {
       save_dir = PathBuf::from(arg);
-    }
+    } else {
+      // Open GUI to get directory, do not let app continue until user has given us data.
+      loop {
+        match gui::fork_ask_for_dir() {
+          Some(directory) => {
+            save_dir = directory;
+            break;
+          }
+          None => {
+            println!("You must select a save directory.");
+          }
+        }
+      }
+    };
+    println!("initial save_dir={:?}", &save_dir.as_path().to_string_lossy());
     GlobalData {
       clients: vec![],
       save_dir: save_dir
