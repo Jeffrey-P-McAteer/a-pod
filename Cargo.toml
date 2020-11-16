@@ -1,6 +1,6 @@
 [package]
 name = "a-pod"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Jeffrey McAteer <jeffrey.p.mcateer@gmail.com>"]
 edition = "2018"
 
